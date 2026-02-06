@@ -17,10 +17,15 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
         setLoading(true);
         try {
             const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) return;
+
             // Fetch shipment AND the linked audit log (which has the JSON)
             const { data, error } = await supabase
                 .from('shipments')
                 .select('*, audit_logs(audit_json)')
+                .eq('user_id', user.id) // Explicitly filter by user_id even if RLS is off
                 .order('created_at', { ascending: false })
                 .limit(50);
 
