@@ -254,25 +254,30 @@ export async function POST(req: NextRequest) {
         };
 
         // --- AUDIT LOG STORAGE (Integrity Protocol) ---
-        // 1. Insert into 'shipments'
-        // 1. Insert or Update 'shipments' (Handle Re-Audit)
+        // 1. Insert into 'shipments' (Fail on Duplicate)
         const { data: shipmentData, error: shipmentError } = await getSupabase()
             .from('shipments')
-            .upsert([{
+            .insert([{
                 user_id: userId,
                 invoice_no: data.metadata?.invoice_number || 'UNKNOWN',
                 fob_value: data.metadata?.total_invoice_value || 0,
                 hs_code: validatedItems[0]?.hs_code || 'MIXED',
                 status: 'Audited'
-            }], { onConflict: 'invoice_no' })
+            }])
             .select()
             .single();
 
         if (shipmentError) {
             console.error('Shipment Write Error:', shipmentError);
-            // Fail gracefully or throw depending on strictness? Prompt says "NO AUDIT DATA IS LOST". 
-            // If we can't write, we should probably alert.
-            // But for now, let's include the error in the response if possible, or throw.
+
+            // Handle Duplicate Invoice Error (Postgres Code 23505)
+            if (shipmentError.code === '23505') {
+                return NextResponse.json(
+                    { error: `Duplicate Invoice: ${data.metadata?.invoice_number} has already been audited. Please check the History.` },
+                    { status: 409 }
+                );
+            }
+
             throw new Error(`Shipment DB Write Failed: ${shipmentError.message}`);
         }
 

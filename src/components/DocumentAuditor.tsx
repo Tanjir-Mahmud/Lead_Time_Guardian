@@ -30,8 +30,8 @@ export function DocumentAuditor() {
                 body: formData,
             });
             if (!res.ok) {
-                const errText = await res.text();
-                throw new Error(`Audit failed: ${res.status} ${errText}`);
+                const errorData = await res.json();
+                throw new Error(errorData.error || `Audit failed: ${res.status}`);
             }
             const data = await res.json();
             setResult(data);
