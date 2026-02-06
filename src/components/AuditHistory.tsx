@@ -64,24 +64,68 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
         const log = item.audit_logs?.[0];
         const auditJson = log?.audit_json || {};
 
-        // Construct data for PDF with fallbacks
+        // Extract nested data safely
+        const report = auditJson.cfo_strategic_report || {};
+        const health = report.shipment_health || {};
+        const profit = report.profit_protection || {};
+        const summary = auditJson.metadata || {};
+        const compliance = auditJson.compliance_summary || {};
+
         const pdfData = {
-            invoiceNo: item.invoice_no || 'N/A',
+            invoiceNo: item.invoice_no || summary.invoice_number || 'N/A',
+            invoiceTotal: item.fob_value || summary.total_invoice_value || 0,
             auditDate: new Date(item.created_at).toLocaleDateString(),
-            fobValue: item.fob_value || 0,
+
+            // 1. Logistics
             logistics: {
-                roadSeaStatus: 'Optimized (Sea-Air Hybrid)', // Default or extract if in DB
-                trackingAlerts: 'On Schedule - No Delays',   // Default or extract if in DB
+                road: health.road || 'Scanning...',
+                sea: health.sea || 'Scanning...',
+                weather: health.weather || 'Scanning...',
             },
-            financials: {
-                avCalculation: (item.fob_value * 1.01) * 1.01,
-                cashIncentive: auditJson.financials?.cash_incentive || 0,
-                revenueRisk: auditJson.risk_assessment?.revenue_risk || 0,
+
+            // 2. Math Integrity
+            mathIntegrity: {
+                fob: item.fob_value || summary.total_invoice_value || 0,
+                av: report.tax_summary?.total_assessable_value || 0,
+                incentive: profit.total_incentives || 0,
+                revenueRisk: report.tax_summary?.total_revenue_risk || 0,
             },
-            strategy: {
-                optimization: auditJson.strategic_advice?.optimization || [],
-                compliance: auditJson.strategic_advice?.compliance || [],
-                riskMitigation: auditJson.strategic_advice?.risk_mitigation || [],
+
+            // 3. Strategic Findings (Text)
+            strategicFindings: auditJson.strategic_audit_report || "No strategic findings recorded.",
+
+            // 4. CA Strategic Advice (Cards)
+            caAdvice: report.ca_recommendations?.map((rec: any) => ({
+                advice: rec.advice,
+                type: rec.type,
+                savings: rec.savings || 0
+            })) || [],
+
+            // 5. Profit Protection
+            profitProtection: {
+                cashIncentive: profit.total_incentives || 0,
+                dutyDrawback: profit.duty_drawback || 0,
+                revenueRisk: profit.revenue_risk || 0,
+                ldcRiskScore: profit.ldc_graduation_risk_score || 0,
+                cbamLiability: profit.cbam_liability_eur || 0,
+            },
+
+            // 6. Line Items
+            lineItems: (auditJson.line_items || []).map((line: any, idx: number) => ({
+                format: idx + 1,
+                description: line.description,
+                qty: line.quantity || 0,
+                price: line.unit_price || 0,
+                hsCode: line.hs_code || 'N/A',
+                ldcImpact: line.ldc_impact?.impacted || false,
+                status: line.compliance?.valid ? 'Valid' : 'Check',
+            })),
+
+            // Sum Check
+            sumCheck: {
+                declared: compliance.declared_total || 0,
+                calculated: compliance.calculated_total || 0,
+                passed: compliance.sum_check_passed || false,
             }
         };
 
