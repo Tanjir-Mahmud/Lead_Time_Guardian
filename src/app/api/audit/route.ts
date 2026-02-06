@@ -235,8 +235,8 @@ export async function POST(req: NextRequest) {
         const cfoReport = {
             shipment_health: await import('@/lib/financial-brain/strategies').then(m => m.fetchLogisticsStatus()),
             tax_compliance: {
-                current_tti_rate: validatedItems[0]?.compliance?.tariff_rate || 0,
-                future_tti_rate: (validatedItems[0]?.compliance?.tariff_rate || 0) + (ldcRiskRate > 1 ? ldcRiskRate : ldcRiskRate * 100),
+                current_tti_rate: Number((validatedItems[0]?.compliance?.tariff_rate || 0).toFixed(2)),
+                future_tti_rate: Number(((validatedItems[0]?.compliance?.tariff_rate || 0) + (ldcRiskRate > 1 ? ldcRiskRate : ldcRiskRate * 100)).toFixed(2)),
             },
             ca_recommendations: [
                 mathErrorsFound ? { type: 'Math Integrity', advice: `🚨 CRITICAL: Math Error Detected. Declared $${declaredTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, True Total $${calculatedSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. System Corrected.`, savings: 0 } : null,
