@@ -43,6 +43,11 @@ interface PDFData {
         calculated: number;
         passed: boolean;
     };
+    sustainability: {
+        score: 'Low' | 'Medium' | 'High';
+        intensity: string;
+        advice: string;
+    };
 }
 
 export const generateCFOReport = (data: PDFData) => {
@@ -237,13 +242,42 @@ export const generateCFOReport = (data: PDFData) => {
     currentY = doc.lastAutoTable.finalY + 15;
 
 
-    // --- 5. LINE ITEMS (Pagination Safe) ---
+    // --- 5. SUSTAINABILITY & CARBON STRATEGY (CBAM) ---
+    currentY = addSectionHeader('4. SUSTAINABILITY & CARBON STRATEGY', currentY);
+
+    doc.setFont('times', 'bold');
+    doc.setFontSize(10);
+    doc.text(`Carbon Score: ${data.sustainability.score.toUpperCase()}`, margin + 5, currentY + 5);
+
+    // Icon Simulation using text color
+    const scoreColor = data.sustainability.score === 'Low' ? [22, 163, 74] :
+        data.sustainability.score === 'Medium' ? [234, 179, 8] : [220, 38, 38];
+    doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
+    doc.text('●', margin, currentY + 5);
+    doc.setTextColor(0, 0, 0); // Reset
+
+    doc.setFont('times', 'normal');
+    doc.text(`Intensity Baseline: ${data.sustainability.intensity}`, margin + 50, currentY + 5);
+
+    doc.setFont('times', 'bolditalic');
+    doc.text(`Mitigation Strategy:`, margin, currentY + 12);
+    doc.setFont('times', 'italic');
+    doc.setFontSize(9);
+
+    // Text wrap for advice
+    const splitAdvice = doc.splitTextToSize(data.sustainability.advice, pageWidth - (margin * 2));
+    doc.text(splitAdvice, margin, currentY + 17);
+
+    currentY += 25; // Spacing after section
+
+
+    // --- 6. INVOICE LINE ITEMS (Pagination Safe) ---
     if (currentY > pageHeight - 40) {
         doc.addPage();
         currentY = margin;
     }
 
-    currentY = addSectionHeader('4. INVOICE LINE ITEMS', currentY);
+    currentY = addSectionHeader('5. INVOICE LINE ITEMS', currentY);
 
     autoTable(doc, {
         startY: currentY,

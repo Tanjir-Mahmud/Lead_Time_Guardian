@@ -159,3 +159,40 @@ export function calculateCBAMLiability(description: string, weightKg: number): {
 
     return { applicable: false, liabilityEUR: 0, note: 'Not Annex I' };
 }
+
+/**
+ * Calculates Carbon Intensity (Ashulia Facility Baseline)
+ * Returns { score: 'Low' | 'Medium' | 'High', intensity: string, advice: string }
+ */
+export function calculateCarbonIntensity(material: string): { score: 'Low' | 'Medium' | 'High', intensity: string, advice: string } {
+    const mat = material.toLowerCase();
+
+    // 1. Identify Material Risk
+    let risk: 'Low' | 'Medium' | 'High' = 'Low';
+    let baseIntensity = 5.5; // kg CO2e per unit (Ashulia baseline)
+
+    if (mat.includes('synthetic') || mat.includes('pu') || mat.includes('polyester')) {
+        risk = 'Medium'; // Emerging risk for 2026
+        baseIntensity = 12.5;
+    } else if (mat.includes('cotton') || mat.includes('leather')) {
+        risk = 'Low';
+        baseIntensity = 8.2;
+    } else if (mat.includes('cement') || mat.includes('steel') || mat.includes('fertilizer')) {
+        risk = 'High';
+        baseIntensity = 25.0; // High emission
+    }
+
+    // 2. Strategic Advice based on Risk
+    let advice = 'Maintain current sustainable sourcing.';
+    if (risk === 'High') {
+        advice = 'CRITICAL: Switch suppliers immediately. High CBAM Levy Risk.';
+    } else if (risk === 'Medium') {
+        advice = 'Switch to Recycled Materials (e.g., Ocean Plastic) to reduce carbon scoring.';
+    }
+
+    return {
+        score: risk,
+        intensity: `${baseIntensity} kg CO2e/unit`,
+        advice
+    };
+}

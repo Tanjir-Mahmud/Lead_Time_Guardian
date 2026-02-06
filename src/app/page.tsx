@@ -36,7 +36,7 @@ export default function Home() {
         totalSavings: 0,
         avgLeadTime: 0,
         onTimeRate: '0.0',
-        carbonOffset: 0
+        carbonScore: 'Low'
     });
     const [loading, setLoading] = useState(true);
 
@@ -57,13 +57,17 @@ export default function Home() {
 
                 // Mocking carbon offset based on shipment weight or generic factor if real data missing
                 // For now, let's say 0 if no shipments, else some rough calc or just 0 to be safe.
-                const carbonOffset = 0;
+                // Carbon Score Mode (Most Frequent)
+                // @ts-ignore
+                const scores = auditLogs.map(l => l.carbon_score || 'Low');
+                const scoreCount = scores.reduce((acc: any, val: any) => { acc[val] = (acc[val] || 0) + 1; return acc; }, {});
+                const carbonScore = Object.keys(scoreCount).reduce((a, b) => scoreCount[a] > scoreCount[b] ? a : b, 'Low');
 
                 setStats({
                     totalSavings,
                     avgLeadTime,
                     onTimeRate,
-                    carbonOffset
+                    carbonScore
                 });
             } catch (e) {
                 console.error("Failed to fetch dashboard stats", e);
@@ -100,11 +104,14 @@ export default function Home() {
                     color="text-purple-500"
                 />
                 <KPICard
-                    title="Carbon Offset"
-                    value={loading ? "..." : `${stats.carbonOffset} Tons`}
-                    sub="Target: 500 Tons"
-                    icon={Anchor}
-                    color="text-emerald-500"
+                    title="Carbon Impact"
+                    value={loading ? "..." : stats.carbonScore}
+                    sub="2026 Facility Rating"
+                    icon={stats.carbonScore === 'High' ? AlertTriangle : Anchor}
+                    color={
+                        stats.carbonScore === 'High' ? 'text-red-500' :
+                            stats.carbonScore === 'Medium' ? 'text-yellow-500' : 'text-green-500'
+                    }
                 />
             </div>
 

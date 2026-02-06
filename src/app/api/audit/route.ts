@@ -3,7 +3,7 @@
 import { validateHSCode } from '@/lib/tariffs';
 import { runComplianceSwarm } from '@/lib/agents';
 import { NextRequest, NextResponse } from 'next/server';
-import { calculateAV_Strict, calculateTTI, calculateRevenueRisk, calculateERP, calculateLDCRiskScore, calculateCBAMLiability, calculateLDCRisk_Financial } from '@/lib/financial-brain/calculations';
+import { calculateAV_Strict, calculateTTI, calculateRevenueRisk, calculateERP, calculateLDCRiskScore, calculateCBAMLiability, calculateLDCRisk_Financial, calculateCarbonIntensity } from '@/lib/financial-brain/calculations';
 import { analyzeAirToSeaSavings, auditCashIncentives, calculateDutyDrawback } from '@/lib/financial-brain/strategies';
 import { createClient } from '@/lib/supabase/server';
 
@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
 
                     // CBAM Analysis
                     const cbam = calculateCBAMLiability(item.description || '', itemWeight);
+                    const carbon = calculateCarbonIntensity(item.description || '');
 
                     financial = {
                         assessable_value: av,
@@ -130,7 +131,8 @@ export async function POST(req: NextRequest) {
                         revenue_at_risk: ldcFinancialRisk,
                         ldc_risk_score: riskScore,
                         erp_analysis: erpAnalysis,
-                        cbam_liability: cbam
+                        cbam_liability: cbam,
+                        carbon_impact: carbon
                     };
                 }
 
@@ -226,6 +228,13 @@ export async function POST(req: NextRequest) {
             tax_summary: {
                 total_assessable_value: validatedItems.reduce((sum: number, i: any) => sum + (i.financial?.assessable_value || 0), 0),
                 total_revenue_risk: validatedItems.reduce((sum: number, i: any) => sum + (i.financial?.revenue_at_risk || 0), 0)
+            },
+            sustainability: {
+                carbon_score: validatedItems.some((i: any) => i.financial?.carbon_impact?.score === 'High') ? 'High' :
+                    validatedItems.some((i: any) => i.financial?.carbon_impact?.score === 'Medium') ? 'Medium' : 'Low',
+                intensity: validatedItems[0]?.financial?.carbon_impact?.intensity || 'N/A',
+                mitigation_advice: validatedItems.find((i: any) => i.financial?.carbon_impact?.score !== 'Low')?.financial?.carbon_impact?.advice ||
+                    'Maintain current sustainable practices.'
             }
         };
 
@@ -288,7 +297,8 @@ export async function POST(req: NextRequest) {
             ldc_risk_value: cfoReport.tax_summary.total_revenue_risk,
             risk_score: cfoReport.profit_protection.ldc_graduation_risk_score,
             audit_json: data, // Keeping full JSON for redundancy/debugging
-            user_id: user.id // Tag with user_id for RLS ownership
+            user_id: user.id, // Tag with user_id for RLS ownership
+            carbon_score: cfoReport.sustainability.carbon_score // 🟢 Synced with DB
         }]);
 
         if (auditError) {
