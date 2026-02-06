@@ -141,7 +141,9 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
                     score: item.carbon_score || item.audit_logs?.[0]?.carbon_score || 'Low',
                     intensity: report.sustainability?.intensity || '5.5 kg CO2e/unit',
                     advice: report.sustainability?.mitigation_advice || 'Maintain current sustainable practices.'
-                }
+                },
+
+                rexStatus: summary.rex_status || 'N/A'
             };
 
             generateCFOReport(pdfData);

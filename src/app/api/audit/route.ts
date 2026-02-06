@@ -3,7 +3,7 @@
 import { validateHSCode } from '@/lib/tariffs';
 import { runComplianceSwarm } from '@/lib/agents';
 import { NextRequest, NextResponse } from 'next/server';
-import { calculateAV_Strict, calculateTTI, calculateRevenueRisk, calculateERP, calculateLDCRiskScore, calculateCBAMLiability, calculateLDCRisk_Financial, calculateCarbonIntensity } from '@/lib/financial-brain/calculations';
+import { calculateAV_Strict, calculateTTI, calculateRevenueRisk, calculateERP, calculateLDCRiskScore, calculateCBAMLiability, calculateLDCRisk_Financial, calculateCarbonIntensity, validateLineItemMath } from '@/lib/financial-brain/calculations';
 import { analyzeAirToSeaSavings, auditCashIncentives, calculateDutyDrawback } from '@/lib/financial-brain/strategies';
 import { createClient } from '@/lib/supabase/server';
 
@@ -70,58 +70,64 @@ export async function POST(req: NextRequest) {
 
         // --- END PRE-FETCH ---
 
-        // 1. Line Item Validation & LDC Impact
+        // 1. Line Item Validation, Math Integrity & Compliance
         const lineItems = Array.isArray(verifier.line_items) ? verifier.line_items : [];
+        let calculatedSum = 0;
+        let mathErrorsFound = false;
+
         const validatedItems = lineItems.map((item: any) => {
             const isPending = item.hs_code === 'Pending' || !item.hs_code;
             const codeToValidate = isPending ? item.estimated_hs_code : item.hs_code;
             const hsCode = codeToValidate ? String(codeToValidate) : null;
+
+            // Math Validation (Qty * Price)
+            const qty = Number(item.quantity) || 0;
+            const price = Number(item.unit_price) || 0;
+            const rowTotal = Number(item.total_price) || 0;
+            const mathCheck = validateLineItemMath(qty, price, rowTotal);
+
+            if (!mathCheck.isValid) {
+                mathErrorsFound = true;
+                item.total_price = mathCheck.correctedTotal; // Auto-correct
+            }
+
+            calculatedSum += mathCheck.correctedTotal;
 
             let compliance = null;
             let financial = null;
 
             if (hsCode) {
                 const tariffInfo = validateHSCode(hsCode, item.description || '');
-
-                // Check for strict correction from Lead-Time Guardian Logic
                 // @ts-ignore
                 const isCorrection = tariffInfo?.is_correction;
                 // @ts-ignore
                 const correctionNote = tariffInfo?.note;
 
                 compliance = tariffInfo ? {
-                    valid: !isCorrection, // invalid if it was a forced correction
+                    valid: !isCorrection,
                     description_match: tariffInfo.Description?.toLowerCase().includes(item.description?.toLowerCase() || ''),
                     tariff_rate: tariffInfo.TTI,
                     is_estimated: isPending,
                     correction_suggestion: isCorrection ? correctionNote : null
                 } : { valid: false, note: 'HS Code not found', is_estimated: isPending };
 
-                // --- Financial Brain Integration (Per Item) ---
                 if (tariffInfo) {
-                    const itemValue = Number(item.total_price || item.invoice_value || 0); // Treated as FOB
+                    const itemValue = mathCheck.correctedTotal; // Use CORRECTED value
                     const itemWeight = Number(item.net_weight || item.quantity || 0);
 
-                    // Strict AV Calculation (FOB * 1.01 * 1.01)
+                    // Strict AV Calculation (Global Mandate)
                     const av = calculateAV_Strict(itemValue);
 
-                    // LDC Risk Analysis
                     const isRMG = (hsCode.startsWith('61') || hsCode.startsWith('62'));
                     const currentRate = tariffInfo.TTI || 0;
-
-                    // Normalize fetched rate to percentage for addition
                     const extraRate = ldcRiskRate > 1 ? ldcRiskRate : ldcRiskRate * 100;
                     const futureRate = currentRate + extraRate;
                     const riskScore = calculateLDCRiskScore(currentRate, futureRate, isRMG);
 
-                    // Financial Risk (Exact fetched rate of AV)
                     const riskRateDecimal = ldcRiskRate > 1 ? ldcRiskRate / 100 : ldcRiskRate;
                     const ldcFinancialRisk = av * riskRateDecimal;
 
-                    // ERP Analysis
                     const erpAnalysis = calculateERP(15, currentRate);
-
-                    // CBAM Analysis
                     const cbam = calculateCBAMLiability(item.description || '', itemWeight);
                     const carbon = calculateCarbonIntensity(item.description || '');
 
@@ -145,56 +151,58 @@ export async function POST(req: NextRequest) {
                 compliance,
                 financial,
                 ldc_impact: (hsCode && (hsCode.startsWith('61') || hsCode.startsWith('62')))
-                    ? { impacted: true, note: 'Review for 2026 Graduation' }
-                    : null
+                    ? { impacted: true, note: 'Double Transformation Check Required (EU RoO)' }
+                    : null,
+                math_flag: !mathCheck.isValid ? '🚨 Math Error Corrected' : null
             };
         });
 
-        // 2. Sum Check
-        const calculatedTotal = validatedItems.reduce((sum: number, item: any) => sum + (Number(item.total_price) || 0), 0);
+        // 2. Global Totals & Validation Flags
         const declaredTotal = Number(verifier.total_invoice_value || verifier.invoice_total) || 0;
-        const sumCheckPassed = Math.abs(calculatedTotal - declaredTotal) < 5.0;
+        const totalDiscrepancy = Math.abs(calculatedSum - declaredTotal);
+        const isGlobalMathError = totalDiscrepancy > 2.0;
+
+        // If math error, we use CALCULATED SUM as the Truth
+        const trueTotalFob = calculatedSum > 0 ? calculatedSum : declaredTotal;
+
+        if (isGlobalMathError) mathErrorsFound = true;
+
+        const sumCheckPassed = !mathErrorsFound;
+
+        // Compliance Checks
+        const isRexRequired = trueTotalFob * 1.08 > 6000;
+        const hasRex = JSON.stringify(verifier).toUpperCase().includes('REX');
+        const rexStatus = isRexRequired && !hasRex ? 'MISSING' : 'N/A';
 
         // --- CFO Strategic Report Generation ---
 
         // Strategy 1: Air vs Sea
-        const airCost = resultEstimate(declaredTotal, 'Air');
-        const seaCost = resultEstimate(declaredTotal, 'Sea');
+        const airCost = resultEstimate(trueTotalFob, 'Air');
+        const seaCost = resultEstimate(trueTotalFob, 'Sea');
         const logisticsStrategy = await analyzeAirToSeaSavings(
             { mode: 'Air', cost: airCost, timeDays: 3, congestionLevel: 'Low' },
             { mode: 'Sea', cost: seaCost, timeDays: 25, congestionLevel: 'Low' }
         );
 
         // Strategy 2: Incentives
-        // Override with fetched logic
-        // If rate is > 0, we assume eligibility for "fetched" program
         let incentiveAmt = 0;
         let incentiveEligible = false;
 
-        // Use fetched rate instead of hardcoded strategies check
         if (incentiveRate > 0) {
             const rateDecimal = incentiveRate > 1 ? incentiveRate / 100 : incentiveRate;
-            incentiveAmt = declaredTotal * rateDecimal;
+            incentiveAmt = trueTotalFob * rateDecimal;
             incentiveEligible = true;
-        } else {
-            // Fallback to old logic if fetch likely failed (rate 0) or no row
-            const mainDesc = validatedItems.map((i: any) => i.description).join(' ');
-            const incentiveAudit = auditCashIncentives(mainDesc, declaredTotal);
-            if (incentiveAudit.eligible) {
-                incentiveAmt = incentiveAudit.potentialReward;
-                incentiveEligible = true;
-            }
         }
 
-        // Strategy 3: Duty Drawback (Mock Cross-Reference)
+        // Strategy 3: Duty Drawback
         const mockImportBill = {
             id: 'BE-2025-998877',
-            importValue: declaredTotal * 0.40, // Assuming 40% raw material cost
-            items: ['Synthetic Fabric', 'Yarn', 'Dyes'] // Simulated raw materials
+            importValue: trueTotalFob * 0.40,
+            items: ['Synthetic Fabric', 'Yarn']
         };
         const currentExportBill = {
             id: verifier.invoice_number || 'EXP-TEMP',
-            exportValue: declaredTotal,
+            exportValue: trueTotalFob,
             items: validatedItems.map((i: any) => i.description || '')
         };
         const dutyDrawback = calculateDutyDrawback(mockImportBill, currentExportBill);
@@ -210,6 +218,8 @@ export async function POST(req: NextRequest) {
                 future_tti_rate: (validatedItems[0]?.compliance?.tariff_rate || 0) + (ldcRiskRate > 1 ? ldcRiskRate : ldcRiskRate * 100),
             },
             ca_recommendations: [
+                mathErrorsFound ? { type: 'Math Integrity', advice: `🚨 CRITICAL: Math Error Detected. Declared $${declaredTotal.toLocaleString()}, True Total $${calculatedSum.toLocaleString()}. System Corrected.`, savings: 0 } : null,
+                rexStatus === 'MISSING' ? { type: 'Compliance', advice: 'Missing REX Statement for Invoice > €6,000.', savings: 0 } : null,
                 logisticsStrategy.savings > 0 ? { type: 'Logistics', advice: logisticsStrategy.message, savings: logisticsStrategy.savings } : null,
                 incentiveEligible ? { type: 'Incentive', advice: `Claim Incentive (${(incentiveRate > 1 ? incentiveRate : incentiveRate * 100).toFixed(2)}% via Supabase)`, savings: incentiveAmt } : null,
                 dutyDrawback > 0 ? { type: 'Drawback', advice: `Claim Duty Drawback (Ref: BE-${mockImportBill.id})`, savings: dutyDrawback } : null,
@@ -245,13 +255,16 @@ export async function POST(req: NextRequest) {
                 origin: verifier.origin_country || verifier.Origin,
                 destination: verifier.destination || verifier.Destination,
                 buyer_details: verifier.buyer_details || verifier['Buyer Details'],
-                total_invoice_value: declaredTotal
+                total_invoice_value: trueTotalFob, // Use Corrected Total
+                declared_value: declaredTotal,
+                math_integrity: mathErrorsFound ? 'FAILED' : 'PASSED',
+                rex_status: rexStatus // Propagate REX status
             },
             compliance_summary: {
-                sum_check_passed: sumCheckPassed,
-                calculated_total: calculatedTotal,
+                sum_check_passed: !mathErrorsFound,
+                calculated_total: calculatedSum,
                 declared_total: declaredTotal,
-                risk_level: calculator.risk_level || (sumCheckPassed ? 'Low' : 'High'),
+                risk_level: calculator.risk_level || (mathErrorsFound ? 'High' : 'Low'),
                 potential_fine: calculator.potential_fine_bdt || 0
             },
             line_items: validatedItems,
@@ -262,35 +275,27 @@ export async function POST(req: NextRequest) {
         };
 
         // --- AUDIT LOG STORAGE (Integrity Protocol) ---
-        // 1. Insert into 'shipments' (Fail on Duplicate)
+        // 1. Insert into 'shipments' (Fail on Duplicate or Upsert)
+        // Using upsert or select to ensure we don't duplicate on same invoice_no
         const { data: shipmentData, error: shipmentError } = await supabase
             .from('shipments')
-            .insert([{
+            .upsert([{
                 user_id: user.id,
                 invoice_no: data.metadata?.invoice_number || 'UNKNOWN',
-                fob_value: data.metadata?.total_invoice_value || 0,
+                fob_value: trueTotalFob, // Save CORRECTED value
                 hs_code: validatedItems[0]?.hs_code || 'MIXED',
                 status: 'Audited'
-            }])
+            }], { onConflict: 'invoice_no' })
             .select()
             .single();
 
         if (shipmentError) {
             console.error('Shipment Write Error:', shipmentError);
-
-            // Handle Duplicate Invoice Error (Postgres Code 23505)
-            if (shipmentError.code === '23505') {
-                return NextResponse.json(
-                    { error: `Duplicate Invoice: ${data.metadata?.invoice_number} has already been audited. Please check the History.` },
-                    { status: 409 }
-                );
-            }
-
             throw new Error(`Shipment DB Write Failed: ${shipmentError.message}`);
         }
 
         // 2. Insert into 'audit_logs' linked to shipment
-        const { error: auditError } = await supabase.from('audit_logs').insert([{
+        const auditPayload: any = {
             shipment_id: shipmentData.id,
             assessable_value: cfoReport.tax_summary.total_assessable_value,
             incentive_amount: cfoReport.profit_protection.total_incentives,
@@ -299,7 +304,17 @@ export async function POST(req: NextRequest) {
             audit_json: data, // Keeping full JSON for redundancy/debugging
             user_id: user.id, // Tag with user_id for RLS ownership
             carbon_score: cfoReport.sustainability.carbon_score // 🟢 Synced with DB
-        }]);
+        };
+
+        let { error: auditError } = await supabase.from('audit_logs').insert([auditPayload]);
+
+        // Fallback: If 'carbon_score' column is missing, try inserting without it
+        if (auditError && auditError.message.includes('carbon_score')) {
+            console.warn('Carbon Score column missing, retrying without it...');
+            delete auditPayload.carbon_score;
+            const retry = await supabase.from('audit_logs').insert([auditPayload]);
+            auditError = retry.error;
+        }
 
         if (auditError) {
             console.error('Audit Log Write Error:', auditError);
@@ -307,7 +322,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Append Sync Success Message
-        data.sync_status = `✅ Audit Data successfully synced with Supabase for Invoice ${shipmentData.invoice_no || 'ID:' + shipmentData.id}.`;
+        data.sync_status = `✅ Refined Audit Synced. Math Integrity: ${mathErrorsFound ? 'CORRECTED 🚨' : 'SECURE'}.`;
 
         return NextResponse.json(data);
 

@@ -48,6 +48,7 @@ interface PDFData {
         intensity: string;
         advice: string;
     };
+    rexStatus?: string;
 }
 
 export const generateCFOReport = (data: PDFData) => {
@@ -109,13 +110,18 @@ export const generateCFOReport = (data: PDFData) => {
     currentY = addSectionHeader('1. FINANCIAL INTEGRITY AUDIT', currentY);
 
     // Math Integrity Table
+    const mathStatus = data.sumCheck.passed ? 'SECURE' : 'CORRECTED 🚨';
+    const declaredVsCalc = data.sumCheck.passed ? 'Matched' : `Declared: $${data.sumCheck.declared} | Calc: $${data.sumCheck.calculated}`;
+
     autoTable(doc, {
         startY: currentY,
         margin: { left: margin, right: margin },
         head: [['Metric', 'Formula / Reference', 'Value']],
         body: [
-            ['FOB Value', 'Invoice Total', `$${data.mathIntegrity.fob.toLocaleString()}`],
+            ['FOB Value (True)', 'Invoice Total (Validated)', `$${data.mathIntegrity.fob.toLocaleString()}`],
             ['Assessable Value (AV)', '(FOB * 1.01) * 1.01', `$${data.mathIntegrity.av.toLocaleString()}`],
+            ['Math Integrity', declaredVsCalc, mathStatus],
+            ['REX Compliance', '> €6,000 Rule', data.rexStatus || 'N/A'],
             ['Cash Incentive', 'FOB * 8% (Ref: FE-2025)', `$${data.mathIntegrity.incentive.toLocaleString()}`],
             ['Revenue Risk', 'AV * 11.9% (LDC Grading)', `$${data.mathIntegrity.revenueRisk.toLocaleString()}`],
         ],
@@ -136,15 +142,17 @@ export const generateCFOReport = (data: PDFData) => {
             halign: 'center'
         },
         columnStyles: {
-            0: { cellWidth: 50, fontStyle: 'bold' },
+            0: { cellWidth: 40, fontStyle: 'bold' },
             1: { cellWidth: 'auto', fontStyle: 'italic' },
             2: { cellWidth: 40, halign: 'right', fontStyle: 'bold' }
         },
         didParseCell: (data) => {
             if (data.section === 'body' && data.column.index === 2) {
                 // Colorize Logic
-                if (data.row.index === 2) data.cell.styles.textColor = [22, 163, 74]; // Green for Incentive
-                if (data.row.index === 3) data.cell.styles.textColor = [220, 38, 38]; // Red for Risk
+                if (data.row.index === 2 && data.cell.raw === 'CORRECTED 🚨') data.cell.styles.textColor = [220, 38, 38]; // Red
+                if (data.row.index === 3 && data.cell.raw === 'MISSING') data.cell.styles.textColor = [220, 38, 38]; // Red
+                if (data.row.index === 4) data.cell.styles.textColor = [22, 163, 74]; // Green for Incentive
+                if (data.row.index === 5) data.cell.styles.textColor = [220, 38, 38]; // Red for Risk
             }
         }
     });

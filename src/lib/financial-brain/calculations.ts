@@ -196,3 +196,19 @@ export function calculateCarbonIntensity(material: string): { score: 'Low' | 'Me
         advice
     };
 }
+
+/**
+ * Validates Line Item Math (Qty * Price vs Total)
+ * Returns { isValid: boolean, correctedTotal: number, discrepancy: number }
+ */
+export function validateLineItemMath(qty: number, price: number, declaredTotal: number): { isValid: boolean, correctedTotal: number, discrepancy: number } {
+    const calculated = qty * price;
+    const diff = Math.abs(calculated - declaredTotal);
+    const tolerance = 1.0; // $1.00 tolerance for rounding
+
+    return {
+        isValid: diff <= tolerance,
+        correctedTotal: calculated,
+        discrepancy: diff
+    };
+}
