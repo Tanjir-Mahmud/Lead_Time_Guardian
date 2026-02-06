@@ -192,24 +192,24 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                     <div className="bg-black/30 p-4 rounded text-xs font-mono border border-white/5 mb-4">
                                         <div className="flex justify-between border-b border-gray-700 pb-1 mb-1">
                                             <span className="text-gray-400">FOB Value</span>
-                                            <span className="text-white font-bold text-right">${result.metadata?.total_invoice_value?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                            <span className="text-white font-bold text-right">${result.metadata?.total_invoice_value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-gray-700 pb-1 mb-1">
                                             <span className="text-gray-400">AV Calculation (Customs Act 23)</span>
                                             <span className="text-white font-bold text-right">
-                                                (FOB * 1.01) * 1.01 = <span className="text-gold">${result.cfo_strategic_report.tax_summary?.total_assessable_value?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                                (FOB * 1.01) * 1.01 = <span className="text-gold">${result.cfo_strategic_report.tax_summary?.total_assessable_value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                             </span>
                                         </div>
                                         <div className="flex justify-between border-b border-gray-700 pb-1 mb-1">
                                             <span className="text-gray-400">Cash Incentive (jul272025fepd30.pdf)</span>
                                             <span className="text-green-400 font-bold text-right">
-                                                FOB * 0.08 = ${result.cfo_strategic_report.profit_protection?.total_incentives?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                FOB * 0.08 = ${result.cfo_strategic_report.profit_protection?.total_incentives?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-gray-400">2026 Revenue Risk (STS Chapter 2)</span>
                                             <span className="text-red-400 font-bold text-right">
-                                                AV * 0.119 = ${result.cfo_strategic_report.tax_summary?.total_revenue_risk?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                AV * 0.119 = ${result.cfo_strategic_report.tax_summary?.total_revenue_risk?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </div>
@@ -244,7 +244,7 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <span className="block text-green-400 font-bold font-mono">+${rec.savings?.toLocaleString()}</span>
+                                                        <span className="block text-green-400 font-bold font-mono">+${rec.savings?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                                         <span className="text-[10px] text-gray-500">SAVINGS</span>
                                                     </div>
                                                 </div>
@@ -276,17 +276,17 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                         <div className="p-4 bg-green-900/10 border border-green-500/20 rounded-lg">
                                             <h5 className="text-green-500 text-xs font-bold uppercase mb-2">Cash Incentives</h5>
-                                            <p className="text-xl font-mono text-green-400 font-bold">${(result.cfo_strategic_report.profit_protection?.total_incentives || 0).toLocaleString()}</p>
+                                            <p className="text-xl font-mono text-green-400 font-bold">${(result.cfo_strategic_report.profit_protection?.total_incentives || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                         </div>
 
                                         <div className="p-4 bg-blue-900/10 border border-blue-500/20 rounded-lg">
                                             <h5 className="text-blue-500 text-xs font-bold uppercase mb-2">Duty Drawback</h5>
-                                            <p className="text-xl font-mono text-blue-400 font-bold">${(result.cfo_strategic_report.profit_protection?.duty_drawback || 0).toLocaleString()}</p>
+                                            <p className="text-xl font-mono text-blue-400 font-bold">${(result.cfo_strategic_report.profit_protection?.duty_drawback || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                         </div>
 
                                         <div className="p-4 bg-red-900/10 border border-red-500/20 rounded-lg">
                                             <h5 className="text-red-500 text-xs font-bold uppercase mb-2">2026 Value at Risk</h5>
-                                            <p className="text-xl font-mono text-red-400 font-bold">${(result.cfo_strategic_report.profit_protection?.revenue_risk || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                                            <p className="text-xl font-mono text-red-400 font-bold">${(result.cfo_strategic_report.profit_protection?.revenue_risk || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                         </div>
 
                                         <div className="p-4 bg-orange-900/10 border border-orange-500/20 rounded-lg text-center">
@@ -311,7 +311,7 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                                         Warning: Annex I goods detected. Estimated carbon certificate cost for EU entry.
                                                     </p>
                                                     <p className="text-xl font-mono text-purple-300 font-bold">
-                                                        €{result.cfo_strategic_report.profit_protection?.cbam_liability_eur?.toLocaleString()}
+                                                        €{result.cfo_strategic_report.profit_protection?.cbam_liability_eur?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </p>
                                                 </div>
                                             </div>
@@ -363,7 +363,7 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                             <td className="px-4 py-3 font-mono text-xs">{idx + 1}</td>
                                             <td className="px-4 py-3">{item.description}</td>
                                             <td className="px-4 py-3 text-right">{item.quantity}</td>
-                                            <td className="px-4 py-3 text-right">${item.unit_price}</td>
+                                            <td className="px-4 py-3 text-right">${item.unit_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                             <td className="px-4 py-3 font-mono text-gold">
                                                 {item.compliance?.is_estimated ? (
                                                     <span className="text-yellow-400 flex items-center gap-1" title="Estimated based on description">

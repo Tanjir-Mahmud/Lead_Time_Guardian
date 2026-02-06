@@ -71,7 +71,7 @@ export function LostRevenueMeter() {
             <div className="relative pt-2">
                 <div className="flex items-baseline gap-1 mb-2">
                     <span className="text-3xl font-bold text-white font-mono">
-                        BDT {revenueLost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        BDT {revenueLost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                     <span className="text-xs text-gray-500">{isLive ? 'Total Verified 2026 Risk' : 'due to congestion'}</span>
                 </div>
