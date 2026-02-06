@@ -170,24 +170,24 @@ export function calculateCarbonIntensity(material: string): { score: 'Low' | 'Me
     // 1. Identify Material Risk
     let risk: 'Low' | 'Medium' | 'High' = 'Low';
     let baseIntensity = 5.5; // kg CO2e per unit (Ashulia baseline)
+    let advice = 'Maintain current sustainable sourcing.';
 
-    if (mat.includes('synthetic') || mat.includes('pu') || mat.includes('polyester')) {
+    if (mat.includes('recycled pet') || (mat.includes('6109.10'))) {
+        // Specific Recycled PET Rule (User Request)
+        risk = 'Low';
+        baseIntensity = 2.1; // High Efficiency
+        advice = '✅ SUSTAINABILITY CHAMPION: Recycled PET Material Detected. High Efficiency Score Granted.';
+    } else if (mat.includes('synthetic') || mat.includes('pu') || mat.includes('polyester')) {
         risk = 'Medium'; // Emerging risk for 2026
         baseIntensity = 12.5;
+        advice = 'Switch to Recycled Materials (e.g., Ocean Plastic) to reduce carbon scoring.';
     } else if (mat.includes('cotton') || mat.includes('leather')) {
         risk = 'Low';
         baseIntensity = 8.2;
     } else if (mat.includes('cement') || mat.includes('steel') || mat.includes('fertilizer')) {
         risk = 'High';
         baseIntensity = 25.0; // High emission
-    }
-
-    // 2. Strategic Advice based on Risk
-    let advice = 'Maintain current sustainable sourcing.';
-    if (risk === 'High') {
         advice = 'CRITICAL: Switch suppliers immediately. High CBAM Levy Risk.';
-    } else if (risk === 'Medium') {
-        advice = 'Switch to Recycled Materials (e.g., Ocean Plastic) to reduce carbon scoring.';
     }
 
     return {

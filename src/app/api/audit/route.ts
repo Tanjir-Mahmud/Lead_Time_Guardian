@@ -269,8 +269,22 @@ export async function POST(req: NextRequest) {
             },
             line_items: validatedItems,
             cfo_strategic_report: cfoReport,
-            // New Strategic Report from Agent
-            strategic_audit_report: calculator.formatted_audit_report,
+            // New Strategic Report from Agent (Overridden for Strictness)
+            strategic_audit_report: `
+### 3. STRATEGIC COMPLIANCE AUDIT
+**Financial Integrity Analysis**
+- **Declared FOB**: $${declaredTotal.toLocaleString()}
+- **True Calculated FOB**: $${trueTotalFob.toLocaleString()}
+- **Metric Check**: ${mathErrorsFound ? '🚨 FAILED (Msg: Math Error Detected)' : '✅ SECURE'}
+
+**Customs Valuation (Strict Protocol)**
+- **Assessable Value (AV)**: $${cfoReport.tax_summary.total_assessable_value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- **Formula**: (FOB * 1.01) * 1.01
+- **2026 Graduation Risk**: $${cfoReport.tax_summary.total_revenue_risk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (11.9% Impact)
+
+**Strategic Recommendations**
+${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}**: ${r?.advice}`).join('\n')}
+            `.trim(),
             swarm_thoughts: swarmResults.map(r => ({ agent: r.agentName, thought: r.thoughtSignature }))
         };
 
