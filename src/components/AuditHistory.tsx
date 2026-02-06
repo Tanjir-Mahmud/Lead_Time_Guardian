@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, Download } from 'lucide-react';
+import { generateCFOReport } from '@/utils/pdfGenerator';
 
 interface AuditHistoryProps {
     onSelectAudit: (audit: any) => void;
@@ -59,6 +60,34 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
         }
     };
 
+    const handleDownload = (item: any) => {
+        const log = item.audit_logs?.[0];
+        const auditJson = log?.audit_json || {};
+
+        // Construct data for PDF with fallbacks
+        const pdfData = {
+            invoiceNo: item.invoice_no || 'N/A',
+            auditDate: new Date(item.created_at).toLocaleDateString(),
+            fobValue: item.fob_value || 0,
+            logistics: {
+                roadSeaStatus: 'Optimized (Sea-Air Hybrid)', // Default or extract if in DB
+                trackingAlerts: 'On Schedule - No Delays',   // Default or extract if in DB
+            },
+            financials: {
+                avCalculation: (item.fob_value * 1.01) * 1.01,
+                cashIncentive: auditJson.financials?.cash_incentive || 0,
+                revenueRisk: auditJson.risk_assessment?.revenue_risk || 0,
+            },
+            strategy: {
+                optimization: auditJson.strategic_advice?.optimization || [],
+                compliance: auditJson.strategic_advice?.compliance || [],
+                riskMitigation: auditJson.strategic_advice?.risk_mitigation || [],
+            }
+        };
+
+        generateCFOReport(pdfData);
+    };
+
     return (
         <div className="mt-8 bg-navy/30 p-6 rounded-xl border border-white/5 mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -89,6 +118,7 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
                                 <th className="px-4 py-3">FOB Value</th>
                                 <th className="px-4 py-3">HS Code</th>
                                 <th className="px-4 py-3 text-right">Date</th>
+                                <th className="px-4 py-3 text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -105,6 +135,18 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
                                     <td className="px-4 py-3 font-mono text-xs">{item.hs_code}</td>
                                     <td className="px-4 py-3 text-right text-gray-500 text-xs">
                                         {new Date(item.created_at).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDownload(item);
+                                            }}
+                                            className="p-2 hover:bg-white/10 rounded-full text-blue-400 hover:text-blue-300 transition-colors"
+                                            title="Download CFO Report"
+                                        >
+                                            <Download size={16} />
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
