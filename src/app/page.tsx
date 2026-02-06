@@ -3,9 +3,10 @@
 import dynamic from 'next/dynamic';
 import { LayoutDashboard, FileCheck, Anchor, TrendingUp, AlertTriangle, RefreshCw, Bot, ChevronLeft, ChevronRight } from 'lucide-react';
 import { LostRevenueMeter } from '@/components/LostRevenueMeter';
+import { LogisticsAlertPanel } from '@/components/LogisticsAlertPanel';
 import { CommandCenterShell } from '@/components/CommandCenterShell';
 import { useEffect, useState } from 'react';
-import { getAnalyticsData } from '@/app/actions';
+import { getAnalyticsData, getLogisticsAlerts, LogisticsAlert } from '@/app/actions';
 
 // Dynamic import for Map to avoid SSR issues
 const SmartMap = dynamic(() => import('@/components/SmartMap'), {
@@ -38,6 +39,7 @@ export default function Home() {
         onTimeRate: '0.0',
         carbonScore: 'Low'
     });
+    const [alerts, setAlerts] = useState<LogisticsAlert[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -45,6 +47,8 @@ export default function Home() {
             setLoading(true);
             try {
                 const { shipments, auditLogs } = await getAnalyticsData();
+                const fetchedAlerts = await getLogisticsAlerts();
+                setAlerts(fetchedAlerts);
 
                 // Calculations
                 const totalSavings = auditLogs.reduce((acc, log) => acc + (log.incentive_amount || 0), 0);
@@ -115,14 +119,21 @@ export default function Home() {
                 />
             </div>
 
-            {/* Active Operations Layer (Map + Live Meter) */}
+            {/* Active Operations Layer (Map + Alerts + Live Meter) */}
             <div className="flex-grow grid grid-cols-12 gap-6 min-h-0">
-                {/* Map & Revenue Meter - Now takes full width of this container */}
-                <div className="col-span-12 flex flex-col gap-6 overflow-y-auto pr-2">
+                {/* Map Section */}
+                <div className="col-span-8 flex flex-col gap-6 overflow-y-auto pr-2">
                     <div className="relative group">
                         <SmartMap />
                     </div>
+                    {/* Revenue Meter integrated below map if needed, or keep separate. 
+                        User layout is flexible. Let's keep Meter here. */}
                     <LostRevenueMeter />
+                </div>
+
+                {/* Right Side: Alerts Panel */}
+                <div className="col-span-4 flex flex-col gap-6 min-h-0">
+                    <LogisticsAlertPanel alerts={alerts} />
                 </div>
             </div>
         </CommandCenterShell>
