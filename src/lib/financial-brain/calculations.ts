@@ -139,7 +139,8 @@ export function calculateLDCRiskScore(currentRate: number, futureRate: number, i
 
 export function calculateCBAMLiability(description: string, weightKg: number): { applicable: boolean, liabilityEUR: number, note: string } {
     const desc = description.toLowerCase();
-    const annexI = ['cement', 'iron', 'steel', 'aluminum', 'fertilizer', 'electricity', 'hydrogen'];
+    // Expanded List for "Synthetic, Plastic, Polymers" (Chapters 6402, 6110 etc) as per User Request
+    const annexI = ['cement', 'iron', 'steel', 'aluminum', 'fertilizer', 'electricity', 'hydrogen', 'synthetic', 'plastic', 'polymer', '6402', '6110'];
 
     const isAnnexI = annexI.some(item => desc.includes(item));
 
@@ -153,11 +154,11 @@ export function calculateCBAMLiability(description: string, weightKg: number): {
         return {
             applicable: true,
             liabilityEUR: liability,
-            note: `CBAM Annex I Good (${weightTonnes.toFixed(2)}T * ${emissionFactor} factor * €${carbonPriceEUR})`
+            note: `CBAM Risk Detected (${weightTonnes.toFixed(2)}T * ${emissionFactor} * €${carbonPriceEUR}). Item: ${description.substring(0, 20)}...`
         };
     }
 
-    return { applicable: false, liabilityEUR: 0, note: 'Not Annex I' };
+    return { applicable: false, liabilityEUR: 0, note: 'Not Annex I / High Risk' };
 }
 
 /**

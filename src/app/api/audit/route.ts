@@ -45,19 +45,22 @@ export async function POST(req: NextRequest) {
 
         // Fetch Regulatory Rates (Default to Textile/Footwear for this user context)
         let incentiveRate = 0.08;
-        let ldcRiskRate = 0.119;
 
-        // We fetch 'Textile' or 'General' as a baseline for the Agent's strategic advice
+        // STRICT PROTOCOL: LDC Risk Rate is FIXED at 11.9% (0.119) for 2026 Simulation
+        // We ignore the DB value for the 'Risk' calculation as per "Golden Rules"
+        const ldcRiskRate = 0.119;
+
+        // We fetch 'Textile' or 'General' as a baseline for the Agent's strategic advice (Incentives only)
         const { data: rates } = await supabase
             .from('regulatory_rates')
-            .select('incentive_rate, ldc_risk_rate')
+            .select('incentive_rate')
             // .eq('category', 'Textile') // defaulting to likely category for Synthetic Steps
             .limit(1)
             .single();
 
         if (rates) {
             incentiveRate = rates.incentive_rate;
-            ldcRiskRate = rates.ldc_risk_rate;
+            // ldcRiskRate = rates.ldc_risk_rate; // DISABLED: Enforcing 11.9%
         }
 
         // Run Compliance Swarm with Live Context
@@ -150,8 +153,8 @@ export async function POST(req: NextRequest) {
                 ...item,
                 compliance,
                 financial,
-                ldc_impact: (hsCode && (hsCode.startsWith('61') || hsCode.startsWith('62')))
-                    ? { impacted: true, note: 'Double Transformation Check Required (EU RoO)' }
+                ldc_impact: (hsCode && (hsCode.startsWith('61') || hsCode.startsWith('62') || hsCode.startsWith('63')))
+                    ? { impacted: true, note: 'Double Transformation Check Required (EU RoO - Ch 61-63)' }
                     : null,
                 math_flag: !mathCheck.isValid ? '🚨 Math Error Corrected' : null
             };
@@ -170,7 +173,8 @@ export async function POST(req: NextRequest) {
         const sumCheckPassed = !mathErrorsFound;
 
         // Compliance Checks
-        const isRexRequired = trueTotalFob * 1.08 > 6000;
+        // REX Rule: > €6,000 (Approx $6,480 USD)
+        const isRexRequired = trueTotalFob > 6480;
         const hasRex = JSON.stringify(verifier).toUpperCase().includes('REX');
         const rexStatus = isRexRequired && !hasRex ? 'MISSING' : 'N/A';
 
