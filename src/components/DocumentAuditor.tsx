@@ -87,6 +87,19 @@ export function DocumentAuditor() {
             {result && (
                 <div className="space-y-6 animate-in fade-in">
 
+                    {/* Database Sync Success */}
+                    {result.sync_status && (
+                        <div className="p-4 bg-green-900/20 border border-green-500/30 rounded-lg flex items-center gap-3 animate-in slide-in-from-top-2">
+                            <CheckCircle className="text-green-500" size={20} />
+                            <div>
+                                <h3 className="font-bold text-green-400 text-sm">Database Integrity Verified</h3>
+                                <p className="text-xs text-green-300/80">
+                                    {result.sync_status}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Extraction Failure Warning */}
                     {(result.metadata?.total_invoice_value === 0 && (!result.line_items || result.line_items.length === 0)) && (
                         <div className="p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg flex items-center gap-3">

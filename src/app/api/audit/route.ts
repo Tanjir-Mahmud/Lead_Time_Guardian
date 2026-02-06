@@ -234,7 +234,9 @@ export async function POST(req: NextRequest) {
             metadata: {
                 invoice_number: verifier.invoice_number,
                 date: verifier.invoice_date,
-                origin: verifier.origin_country,
+                origin: verifier.origin_country || verifier.Origin,
+                destination: verifier.destination || verifier.Destination,
+                buyer_details: verifier.buyer_details || verifier['Buyer Details'],
                 total_invoice_value: declaredTotal
             },
             compliance_summary: {
@@ -251,16 +253,45 @@ export async function POST(req: NextRequest) {
             swarm_thoughts: swarmResults.map(r => ({ agent: r.agentName, thought: r.thoughtSignature }))
         };
 
-        // --- AUDIT LOG STORAGE ---
-        await getSupabase().from('audit_logs').insert([{
-            user_id: userId,
-            invoice_number: data.metadata?.invoice_number || 'UNKNOWN',
+        // --- AUDIT LOG STORAGE (Integrity Protocol) ---
+        // 1. Insert into 'shipments'
+        const { data: shipmentData, error: shipmentError } = await getSupabase()
+            .from('shipments')
+            .insert([{
+                user_id: userId,
+                invoice_no: data.metadata?.invoice_number || 'UNKNOWN',
+                fob_value: data.metadata?.total_invoice_value || 0,
+                hs_code: validatedItems[0]?.hs_code || 'MIXED',
+                status: 'Audited'
+            }])
+            .select()
+            .single();
+
+        if (shipmentError) {
+            console.error('Shipment Write Error:', shipmentError);
+            // Fail gracefully or throw depending on strictness? Prompt says "NO AUDIT DATA IS LOST". 
+            // If we can't write, we should probably alert.
+            // But for now, let's include the error in the response if possible, or throw.
+            throw new Error(`Shipment DB Write Failed: ${shipmentError.message}`);
+        }
+
+        // 2. Insert into 'audit_logs' linked to shipment
+        const { error: auditError } = await getSupabase().from('audit_logs').insert([{
+            shipment_id: shipmentData.id,
             assessable_value: cfoReport.tax_summary.total_assessable_value,
             incentive_amount: cfoReport.profit_protection.total_incentives,
-            risk_amount: cfoReport.tax_summary.total_revenue_risk,
-            audit_json: data,
-            created_at: new Date().toISOString()
+            ldc_risk_value: cfoReport.tax_summary.total_revenue_risk,
+            risk_score: cfoReport.profit_protection.ldc_graduation_risk_score,
+            audit_json: data // Keeping full JSON for redundancy/debugging
         }]);
+
+        if (auditError) {
+            console.error('Audit Log Write Error:', auditError);
+            throw new Error(`Audit Log DB Write Failed: ${auditError.message}`);
+        }
+
+        // Append Sync Success Message
+        data.sync_status = `✅ Audit Data successfully synced with Supabase for Invoice ${shipmentData.invoice_no || 'ID:' + shipmentData.id}.`;
 
         return NextResponse.json(data);
 

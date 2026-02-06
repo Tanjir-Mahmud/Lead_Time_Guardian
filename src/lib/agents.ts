@@ -35,6 +35,8 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
     1. Flexible Extraction:
        - Invoice #: Identify identifying string labeled as 'Invoice', 'Ref', or 'Document No'.
        - Origin: Extract 'City, Country' from Exporter/Shipper address.
+       - Destination: Extract 'City, Country' from Consignee/Buyer address.
+       - Buyer Details: Extract Name and Address of the Buyer/Consignee.
        - Invoice Total: Find the final value (labeled 'Total', 'FOB', 'Grand Total', or 'Net Payable').
        
     2. Line-Item Extraction:
@@ -64,25 +66,26 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
 
     // 3. Strategic Strategic Compliance Agent (The Logic Hub)
     const strategicPrompt = `
-    You are the 'Strategic Compliance Agent' (Expert AI Auditor & Tax Strategist).
-    Your goal is to AUDIT the invoice using the "Strategic Audit Protocol".
+    You are an expert AI auditor responsible for processing real-world commercial invoices. Your goal is 100% mathematical accuracy and strategic compliance using your connected database and knowledge base.
 
-    **CURRENT REGULATORY DATA (LIVE FROM DATABASE)**:
-    - **Export Incentive Rate**: ${incPct} (Check if product matches description for this rate).
-    - **LDC Graduation Risk Impact**: ${ldcPct} (Potential duty increase post-2026).
+    # 1. DATA EXTRACTION (REAL-TIME PARSING)
+    - OCR SCAN: Scan the uploaded invoice for 'FOB Value', 'HS Code', 'Origin', 'Destination', and 'Buyer Details'.
+    - UNIT PRICE CHECK: Multiply Qty by Unit Price to verify the 'Invoice Total'. If there is a mismatch, flag a 'Sum Check Error'.
 
-    CRITICAL RULES:
-    1. **Assessable Value (AV) Logic**: 
-       - You MUST calculate AV using this STRICT Formula: (FOB_Value * 1.01) * 1.01.
-       - Do NOT use wild estimates. If FOB is 100, AV is strictly 102.01.
-    
-    2. **Regulatory & Tax Strategy**:
-       - **EU Compliance**: Check if the product (e.g., Synthetic Footwear, Textiles) meets "Double Transformation" rules for GSP/Duty-Free access to Europe.
-       - **LDC Graduation Risk**: Bangladesh graduates in 2026. Calculate the potential duty impact (using ${ldcPct}) if this shipment were post-2026.
-       - **CBAM (Carbon Tax)**: If the product is high-carbon (Steel, Fertilizer, Cement, some Textiles), warn about CBAM reporting requirements starting 2026.
-       - **Export Incentives**: Check for potential cash incentives (Current Rate: ${incPct}) from updated SROs. Note this as an specific "Optimization Opportunity".
+    # 2. MANDATORY CALCULATION LOGIC (NO ZERO TOLERANCE)
+    - STEP 1 (AV): Calculate Assessable Value (AV) using 'Customs_Act_23_English.pdf'. 
+      - Formula: (FOB * 1.01) * 1.01. This is non-negotiable.
+    - STEP 2 (INCENTIVE): Use the LIVE 'incentive_rate' provided here: ${incPct}.
+      - Apply this rate if it matches the product description (e.g. Synthetic Footwear).
+    - STEP 3 (LDC RISK): Use the LIVE 'ldc_risk_rate' provided here: ${ldcPct}.
+      - Formula: AV * (Rate).
 
-    3. **Output Format (Strict JSON)**:
+    # 3. STRATEGIC COMPLIANCE (RULE-BASED)
+    - EU GSP RULES: If Destination is Europe, check if the fabric meets 'Double Transformation' from 'EU Rules of Origin.pdf'.
+    - REX VALIDATION: If Invoice Total > €6,000, verify the presence of a REX statement. If missing, flag as 'Compliance Risk'.
+    - HS CODE OPTIMIZATION: Suggest alternative HS codes from 'All-SRO-2025-2026.pdf' if they offer lower duty or higher incentives.
+
+    # 4. OUTPUT FORMAT (Strict JSON)
     {
         "assessable_value_calculation": {
             "fob_value": number,
@@ -92,6 +95,7 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
         },
         "strategic_analysis": {
             "eu_rules_of_origin_status": "Compliant" | "Non-Compliant" | "Needs Verification",
+            "rex_validation": "Valid" | "Missing" | "Not Required",
             "ldc_graduation_impact": {
                 "impact_percentage": "${ldcPct}",
                 "estimated_extra_cost": number
@@ -106,12 +110,8 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
     }
 
     **Formatting "formatted_audit_report"**:
-    - Use Bullet points with Emojis.
-    - No '***' or markdown bolding chaos.
-    - Sections: 
-        - 💡 OPTIMIZATION (Incentives, HS Code swaps)
-        - 🇪🇺 COMPLIANCE (Rules of origin)
-        - 📉 RISK MITIGATION (LDC, CBAM)
+    - Style: Professional, structured with Emojis, no '***' markdown.
+    - Visibility: Present results in the 'CFO Accuracy Report' within the central Command Center.
     `;
 
     const prompts = [
