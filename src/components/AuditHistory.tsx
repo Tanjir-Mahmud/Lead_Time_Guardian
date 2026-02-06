@@ -21,7 +21,7 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
                 .from('shipments')
                 .select('*, audit_logs(audit_json)')
                 .order('created_at', { ascending: false })
-                .limit(10);
+                .limit(50);
 
             if (error) throw error;
             setHistory(data || []);
