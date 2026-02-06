@@ -1,24 +1,32 @@
 'use server';
 
-import { getSupabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 
 // --- Analytics Actions ---
 
 export async function getAnalyticsData() {
     try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+            console.error('No authenticated user found for analytics.');
+            return { shipments: [], auditLogs: [] };
+        }
+
         // Fetch Shipments
-        const { data: shipments, error: shipmentsError } = await getSupabase()
+        const { data: shipments, error: shipmentsError } = await supabase
             .from('shipments')
             .select('*')
-            .eq('user_id', 'Synthetic Steps Ltd'); // Filter by User ID
+            .eq('user_id', user.id); // Securely filter by logged-in user
 
         if (shipmentsError) throw shipmentsError;
 
         // Fetch Audit Logs
-        const { data: auditLogs, error: auditError } = await getSupabase()
+        const { data: auditLogs, error: auditError } = await supabase
             .from('audit_logs')
             .select('*')
-            .eq('user_id', 'Synthetic Steps Ltd');
+            .eq('user_id', user.id);
 
         if (auditError) throw auditError;
 
@@ -32,8 +40,9 @@ export async function getAnalyticsData() {
 // --- Audit Logic Helpers ---
 
 export async function getRegulatoryRates(category: string = 'General') {
+    const supabase = createClient();
     // Fallback to 'General' or specific logic if category not found
-    const { data, error } = await getSupabase()
+    const { data, error } = await supabase
         .from('regulatory_rates')
         .select('incentive_rate, ldc_risk_rate')
         .eq('category', category)
@@ -52,9 +61,17 @@ export async function getRegulatoryRates(category: string = 'General') {
 }
 
 export async function saveAuditLog(logEntry: any) {
-    const { error } = await getSupabase()
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        console.error('User not authenticated. Cannot save audit log.');
+        return;
+    }
+
+    const { error } = await supabase
         .from('audit_logs')
-        .insert([logEntry]);
+        .insert([{ ...logEntry, user_id: user.id }]); // Ensure user_id is tagged
 
     if (error) {
         console.error('Error saving audit log:', error);

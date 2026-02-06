@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getSupabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { Loader2, RefreshCw } from 'lucide-react';
 
 interface AuditHistoryProps {
@@ -16,8 +16,9 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
     const fetchHistory = async () => {
         setLoading(true);
         try {
+            const supabase = createClient();
             // Fetch shipment AND the linked audit log (which has the JSON)
-            const { data, error } = await getSupabase()
+            const { data, error } = await supabase
                 .from('shipments')
                 .select('*, audit_logs(audit_json)')
                 .order('created_at', { ascending: false })

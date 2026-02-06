@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { LogisticsChat } from '@/components/LogisticsChat';
 import { Bot, ChevronRight } from 'lucide-react';
+import { UserProfile } from '@/components/UserProfile';
 
 interface CommandCenterShellProps {
     children: React.ReactNode;
@@ -28,6 +29,7 @@ export function CommandCenterShell({ children, title, subtitle }: CommandCenterS
                             {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
                         </div>
                         <div className="flex items-center gap-4">
+                            <UserProfile />
                             <div className="bg-[#1a1a1a] border border-[#c9a747]/20 px-3 py-1 rounded text-xs text-[#c9a747] flex items-center gap-2">
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                                 System Active

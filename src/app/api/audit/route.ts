@@ -5,7 +5,7 @@ import { runComplianceSwarm } from '@/lib/agents';
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateAV_Strict, calculateTTI, calculateRevenueRisk, calculateERP, calculateLDCRiskScore, calculateCBAMLiability, calculateLDCRisk_Financial } from '@/lib/financial-brain/calculations';
 import { analyzeAirToSeaSavings, auditCashIncentives, calculateDutyDrawback } from '@/lib/financial-brain/strategies';
-import { getSupabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 
 const SYSTEM_PROMPT = `
 You are an expert logistics document auditor. Extract the following fields from the image:
@@ -22,6 +22,13 @@ Return ONLY valid JSON.
 
 export async function POST(req: NextRequest) {
     try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const formData = await req.formData();
         const file = formData.get('file') as Blob;
 
@@ -35,21 +42,13 @@ export async function POST(req: NextRequest) {
         const mimeType = file.type;
 
         // --- SUPABASE INTEGRATION START (Pre-Fetch for Agent Context) ---
-        let userId = '00000000-0000-0000-0000-000000000000';
-        // Try to fetch user ID for 'Synthetic Steps Ltd'
-        const { data: user } = await getSupabase()
-            .from('users')
-            .select('id')
-            .eq('company_name', 'Synthetic Steps Ltd')
-            .single();
-        if (user) userId = user.id;
 
         // Fetch Regulatory Rates (Default to Textile/Footwear for this user context)
         let incentiveRate = 0.08;
         let ldcRiskRate = 0.119;
 
         // We fetch 'Textile' or 'General' as a baseline for the Agent's strategic advice
-        const { data: rates } = await getSupabase()
+        const { data: rates } = await supabase
             .from('regulatory_rates')
             .select('incentive_rate, ldc_risk_rate')
             // .eq('category', 'Textile') // defaulting to likely category for Synthetic Steps
@@ -255,10 +254,10 @@ export async function POST(req: NextRequest) {
 
         // --- AUDIT LOG STORAGE (Integrity Protocol) ---
         // 1. Insert into 'shipments' (Fail on Duplicate)
-        const { data: shipmentData, error: shipmentError } = await getSupabase()
+        const { data: shipmentData, error: shipmentError } = await supabase
             .from('shipments')
             .insert([{
-                user_id: userId,
+                user_id: user.id,
                 invoice_no: data.metadata?.invoice_number || 'UNKNOWN',
                 fob_value: data.metadata?.total_invoice_value || 0,
                 hs_code: validatedItems[0]?.hs_code || 'MIXED',
@@ -282,13 +281,14 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Insert into 'audit_logs' linked to shipment
-        const { error: auditError } = await getSupabase().from('audit_logs').insert([{
+        const { error: auditError } = await supabase.from('audit_logs').insert([{
             shipment_id: shipmentData.id,
             assessable_value: cfoReport.tax_summary.total_assessable_value,
             incentive_amount: cfoReport.profit_protection.total_incentives,
             ldc_risk_value: cfoReport.tax_summary.total_revenue_risk,
             risk_score: cfoReport.profit_protection.ldc_graduation_risk_score,
-            audit_json: data // Keeping full JSON for redundancy/debugging
+            audit_json: data, // Keeping full JSON for redundancy/debugging
+            user_id: user.id // Tag with user_id for RLS ownership
         }]);
 
         if (auditError) {
