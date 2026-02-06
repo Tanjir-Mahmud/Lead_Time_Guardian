@@ -298,6 +298,8 @@ export async function POST(req: NextRequest) {
 - **True Calculated FOB**: $${trueTotalFob.toLocaleString()}
 - **Metric Check**: ${mathErrorsFound ? '🚨 FAILED (Msg: Math Error Detected)' : '✅ SECURE'}
 
+---
+
 **Customs Valuation (Strict Protocol)**
 - **Assessable Value (AV)**: $${cfoReport.tax_summary.total_assessable_value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 - **Formula**: (FOB * 1.01) * 1.01
@@ -306,44 +308,45 @@ export async function POST(req: NextRequest) {
 **Strategic Recommendations**
 ${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}**: ${r?.advice}`).join('\n')}
 
+---
+
 ### 🔍 AUDIT TRACEABILITY
+
 **1. Assessable Value (AV) Calculation**
 - **Why**: Determining the base value for customs duty assessment.
-- **Regulatory Source**: [Customs Act 1969, Section 25] & [STS Chapter 2]
-- **Math Trace**:
-[AV = (FOB * 1.01) * 1.01] -> [$${trueTotalFob.toFixed(2)} * 1.01] -> [$${(trueTotalFob * 1.01).toFixed(2)} * 1.01] -> **$${strictGlobalAV.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**
+- **Regulatory Source**: _(Source: [Customs Act 1969, Section 25] & [STS Chapter 2])_
+> **Calculation:** \`AV = (FOB * 1.01) * 1.01\` ⮕ \`$${trueTotalFob.toFixed(2)} * 1.01\` ⮕ \`$${(trueTotalFob * 1.01).toFixed(2)} * 1.01\` ⮕ **$${strictGlobalAV.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}** ✅
 
 **2. 2026 LDC Graduation Risk (Revenue Risk)**
 - **Why**: Post-LDC graduation, standard GSP rate transitions to MFN rate (11.9% Jump).
-- **Regulatory Source**: [STS Chapter 2] & [Customs Act 23 - Graduation Clauses]
-- **Math Trace**:
-[Risk = AV * 0.119] -> [$${strictGlobalAV.toFixed(2)} * 0.119] -> **$${strictGlobalRisk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**
+- **Regulatory Source**: _(Source: [STS Chapter 2] & [Customs Act 23 - Graduation Clauses])_
+> **Calculation:** \`Risk = AV * 0.119\` ⮕ \`$${strictGlobalAV.toFixed(2)} * 0.119\` ⮕ **$${strictGlobalRisk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}** ⚠️
 
 **3. Cash Incentive Logic**
 - **Why**: Government subsidy for export sectors (currently set at ${incentiveRate > 1 ? incentiveRate : incentiveRate * 100}%).
-- **Regulatory Source**: [FEB Circular: jul272025fepd30.pdf]
-- **Math Trace**:
-[Incentive = FOB * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}] -> [$${trueTotalFob.toFixed(2)} * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}] -> **$${incentiveAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**
+- **Regulatory Source**: _(Source: [FEB Circular: jul272025fepd30.pdf])_
+> **Calculation:** \`Incentive = FOB * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}\` ⮕ \`$${trueTotalFob.toFixed(2)} * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}\` ⮕ **$${incentiveAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}** 💰
 
 **4. Duty Drawback Logic (Strict 6%)**
 - **Why**: Refund of import duties on raw materials used for export.
-- **Regulatory Source**: [NBR Statutory Regulatory Order (SRO)]
-- **Math Trace**:
-[Drawback = FOB * 0.06] -> [$${trueTotalFob.toFixed(2)} * 0.06] -> **$${dutyDrawback.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**
+- **Regulatory Source**: _(Source: [NBR Statutory Regulatory Order (SRO)])_
+> **Calculation:** \`Drawback = FOB * 0.06\` ⮕ \`$${trueTotalFob.toFixed(2)} * 0.06\` ⮕ **$${dutyDrawback.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}** 🔄
 
 **5. REX Requirement Check**
 - **Why**: Self-certification required for EU GSP exports over €6,000.
-- **Regulatory Source**: [EU Rules of Origin.pdf]
-- **Logic Trace**:
-[Invoice Value > €6,480?] -> [$${trueTotalFob.toFixed(2)} > $6,480?] -> **${isRexRequired ? 'YES (REX REQUIRED)' : 'NO (Below Threshold)'}** -> Status: ${rexStatus}
+- **Regulatory Source**: _(Source: [EU Rules of Origin.pdf])_
+> **Logic Trace:** \`Invoice Value > €6,480?\` ⮕ \`$${trueTotalFob.toFixed(2)} > $6,480?\` ⮕ **${isRexRequired ? 'YES (REX REQUIRED)' : 'NO (Below Threshold)'}** ⮕ Status: ${rexStatus}
+
+---
 
 ### 🛡️ HEDGING ANALYSIS (2026 PROTECTION)
-**Strategic Net Margin Calculation**
-- **Total Export Benefits**: 14.00% (8% Incentive + 6% Drawback)
-- **Less: 2026 Graduation Risk**: 11.90% (MFN Rate Impact)
-- **Net Compliance Safety Margin**: **+2.10%**
 
-*"Total Export Benefits (14%) effectively hedge against the 11.9% Graduation Risk, leaving a net positive margin of 2.1%."*
+**Strategic Net Margin Calculation**
+*   **Total Export Benefits**: 14.00% (8% Incentive + 6% Drawback)
+*   **Less: 2026 Graduation Risk**: 11.90% (MFN Rate Impact)
+*   **Net Compliance Safety Margin**: <span style="color: #4ade80; font-weight: bold;">+2.10%</span>
+
+> **"Total Export Benefits (14%) effectively hedge against the 11.9% Graduation Risk, leaving a net positive margin of +2.10%."**
             `.trim(),
             swarm_thoughts: swarmResults.map(r => ({ agent: r.agentName, thought: r.thoughtSignature }))
         };
