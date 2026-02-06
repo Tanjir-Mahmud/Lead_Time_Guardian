@@ -4,7 +4,11 @@ import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { Loader2, RefreshCw } from 'lucide-react';
 
-export function AuditHistory() {
+interface AuditHistoryProps {
+    onSelectAudit: (audit: any) => void;
+}
+
+export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [history, setHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -12,9 +16,10 @@ export function AuditHistory() {
     const fetchHistory = async () => {
         setLoading(true);
         try {
+            // Fetch shipment AND the linked audit log (which has the JSON)
             const { data, error } = await getSupabase()
                 .from('shipments')
-                .select('*')
+                .select('*, audit_logs(audit_json)')
                 .order('created_at', { ascending: false })
                 .limit(10);
 
@@ -36,6 +41,18 @@ export function AuditHistory() {
         // but for simplicity we'll add a refresh button for the user.
     }, []);
 
+    const handleRowClick = (item: any) => {
+        // The audit_json is inside the nested audit_logs array (since it's a one-to-many relation, conceptually)
+        // or one-to-one depending on how Supabase sees it. Usually returns array.
+        const log = item.audit_logs?.[0];
+        if (log?.audit_json) {
+            onSelectAudit(log.audit_json);
+
+            // Scroll to top to see the result
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
     return (
         <div className="mt-8 bg-navy/30 p-6 rounded-xl border border-white/5 mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -55,7 +72,7 @@ export function AuditHistory() {
                 </div>
             ) : history.length === 0 ? (
                 <div className="text-sm text-gray-500 text-center py-8">
-                    No previous audits found in 'shipments'.
+                    No previous audits found.
                 </div>
             ) : (
                 <div className="overflow-x-auto">
@@ -70,8 +87,14 @@ export function AuditHistory() {
                         </thead>
                         <tbody>
                             {history.map((item) => (
-                                <tr key={item.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                    <td className="px-4 py-3 font-mono text-white">{item.invoice_no}</td>
+                                <tr
+                                    key={item.id}
+                                    onClick={() => handleRowClick(item)}
+                                    className="border-b border-white/5 hover:bg-white/10 transition-colors cursor-pointer group"
+                                >
+                                    <td className="px-4 py-3 font-mono text-white group-hover:text-gold transition-colors">
+                                        {item.invoice_no}
+                                    </td>
                                     <td className="px-4 py-3 text-gold">${item.fob_value?.toLocaleString()}</td>
                                     <td className="px-4 py-3 font-mono text-xs">{item.hs_code}</td>
                                     <td className="px-4 py-3 text-right text-gray-500 text-xs">

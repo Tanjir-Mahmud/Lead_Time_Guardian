@@ -1,13 +1,25 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Upload, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
-export function DocumentAuditor() {
+interface DocumentAuditorProps {
+    initialData?: any;
+}
+
+export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
     const [file, setFile] = useState<File | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [result, setResult] = useState<any>(null);
+
+    // Sync when parent passes new data (e.g. from History)
+    useEffect(() => {
+        if (initialData) {
+            setResult(initialData);
+            setFile(null);
+        }
+    }, [initialData]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
