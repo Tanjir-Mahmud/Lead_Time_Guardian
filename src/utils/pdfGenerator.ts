@@ -167,9 +167,21 @@ export const generateCFOReport = (data: PDFData) => {
     doc.setFontSize(9);
     doc.setTextColor(50, 50, 50);
     doc.setFont('helvetica', 'normal');
+
     // Sanitize and split text
-    const strategicText = data.strategicFindings.replace(/[*#]/g, '');
-    const strategicLines = doc.splitTextToSize(strategicText, pageWidth - (margin * 2));
+    // Remove markdown symbols and common encoding artifacts (mojibake)
+    let strategicText = data.strategicFindings
+        .replace(/[*#]/g, '')
+        .replace(/[ØÝÜÞàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ]/g, '') // Remove Latin-1 supplement garbage that appears as artifacts
+        .replace(/&p/g, '\n') // Fix common PDF formatting artifacts
+        .replace(/\u00A0/g, ' '); // Replace non-breaking spaces
+
+    // Clean up bullet point artifacts looking like "9 " or "= " at start of lines
+    strategicText = strategicText.replace(/^\s*[Ø=Ý9]+\s*/gm, '• ');
+
+    // Use a slightly narrower width than the full margin width to be safe
+    const safeWidth = pageWidth - (margin * 2.5);
+    const strategicLines = doc.splitTextToSize(strategicText, safeWidth);
     doc.text(strategicLines, margin, currentY);
 
     currentY += (strategicLines.length * 4.5) + 15;
