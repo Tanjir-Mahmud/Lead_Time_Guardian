@@ -138,26 +138,39 @@ export const generateCFOReport = (data: PDFData) => {
     doc.setDrawColor(...colors.gold);
     doc.line(rightColX, currentY + 2, pageWidth - margin, currentY + 2);
 
-    const mathY = currentY + 8;
+    autoTable(doc, {
+        startY: currentY + 5,
+        margin: { left: rightColX },
+        tableWidth: rightColWidth,
+        head: [],
+        body: [
+            ['FOB Value', `$${data.mathIntegrity.fob.toLocaleString()}`],
+            ['AV Calculation ((FOB * 1.01) * 1.01)', `$${data.mathIntegrity.av.toLocaleString()}`],
+            ['Cash Incentive (FOB * 0.08) [Ref: FE-2025]', `$${data.mathIntegrity.incentive.toLocaleString()}`],
+            ['2026 Revenue Risk (AV * 0.119) [STS Ch.2]', `$${data.mathIntegrity.revenueRisk.toLocaleString()}`],
+        ],
+        theme: 'plain',
+        styles: {
+            fontSize: 8,
+            cellPadding: 1.5,
+            textColor: colors.navy,
+            font: 'helvetica',
+            overflow: 'linebreak' // Wrap text if needed
+        },
+        columnStyles: {
+            0: { cellWidth: 'auto', fontStyle: 'normal', textColor: colors.gray },
+            1: { cellWidth: 30, halign: 'right', fontStyle: 'bold' } // Fixed width for values
+        },
+        didParseCell: (data) => {
+            // Colorize specific values
+            if (data.section === 'body' && data.column.index === 1) {
+                if (data.row.index === 2) data.cell.styles.textColor = colors.green;
+                if (data.row.index === 3) data.cell.styles.textColor = colors.red;
+            }
+        }
+    });
 
-    const drawMathRow = (y: number, label: string, val: string, valColor: [number, number, number] = [0, 0, 0]) => {
-        doc.setFontSize(8);
-        doc.setTextColor(...colors.gray);
-        doc.setFont('helvetica', 'normal');
-        doc.text(label, rightColX, y);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...valColor);
-        doc.text(val, pageWidth - margin, y, { align: 'right' });
-
-        doc.setDrawColor(240, 240, 240);
-        doc.line(rightColX, y + 2, pageWidth - margin, y + 2);
-    };
-
-    drawMathRow(mathY + 4, 'FOB Value', `$${data.mathIntegrity.fob.toLocaleString()}`, colors.navy);
-    drawMathRow(mathY + 12, 'AV Calculation ((FOB * 1.01) * 1.01)', `$${data.mathIntegrity.av.toLocaleString()}`, colors.navy);
-    drawMathRow(mathY + 20, 'Cash Incentive (FOB * 0.08)', `$${data.mathIntegrity.incentive.toLocaleString()}`, colors.green);
-    drawMathRow(mathY + 28, '2026 Revenue Risk (AV * 0.119)', `$${data.mathIntegrity.revenueRisk.toLocaleString()}`, colors.red);
+    currentY += 50;
 
     currentY += 50;
 

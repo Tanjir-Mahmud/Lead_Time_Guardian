@@ -13,6 +13,7 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [history, setHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
     const fetchHistory = async () => {
         setLoading(true);
@@ -60,76 +61,88 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
         }
     };
 
-    const handleDownload = (item: any) => {
-        const log = item.audit_logs?.[0];
-        const auditJson = log?.audit_json || {};
+    const handleDownload = async (item: any) => {
+        if (downloadingId) return; // Prevent multiple clicks
+        setDownloadingId(item.id);
 
-        // Extract nested data safely
-        const report = auditJson.cfo_strategic_report || {};
-        const health = report.shipment_health || {};
-        const profit = report.profit_protection || {};
-        const summary = auditJson.metadata || {};
-        const compliance = auditJson.compliance_summary || {};
+        // Small delay to allow UI to update (React batching)
+        await new Promise(resolve => setTimeout(resolve, 100));
 
-        const pdfData = {
-            invoiceNo: item.invoice_no || summary.invoice_number || 'N/A',
-            invoiceTotal: item.fob_value || summary.total_invoice_value || 0,
-            auditDate: new Date(item.created_at).toLocaleDateString(),
+        try {
+            const log = item.audit_logs?.[0];
+            const auditJson = log?.audit_json || {};
 
-            // 1. Logistics
-            logistics: {
-                road: health.road || 'Scanning...',
-                sea: health.sea || 'Scanning...',
-                weather: health.weather || 'Scanning...',
-            },
+            // Extract nested data safely
+            const report = auditJson.cfo_strategic_report || {};
+            const health = report.shipment_health || {};
+            const profit = report.profit_protection || {};
+            const summary = auditJson.metadata || {};
+            const compliance = auditJson.compliance_summary || {};
 
-            // 2. Math Integrity
-            mathIntegrity: {
-                fob: item.fob_value || summary.total_invoice_value || 0,
-                av: report.tax_summary?.total_assessable_value || 0,
-                incentive: profit.total_incentives || 0,
-                revenueRisk: report.tax_summary?.total_revenue_risk || 0,
-            },
+            const pdfData = {
+                invoiceNo: item.invoice_no || summary.invoice_number || 'N/A',
+                invoiceTotal: item.fob_value || summary.total_invoice_value || 0,
+                auditDate: new Date(item.created_at).toLocaleDateString(),
 
-            // 3. Strategic Findings (Text)
-            strategicFindings: auditJson.strategic_audit_report || "No strategic findings recorded.",
+                // 1. Logistics
+                logistics: {
+                    road: health.road || 'Scanning...',
+                    sea: health.sea || 'Scanning...',
+                    weather: health.weather || 'Scanning...',
+                },
 
-            // 4. CA Strategic Advice (Cards)
-            caAdvice: report.ca_recommendations?.map((rec: any) => ({
-                advice: rec.advice,
-                type: rec.type,
-                savings: rec.savings || 0
-            })) || [],
+                // 2. Math Integrity
+                mathIntegrity: {
+                    fob: item.fob_value || summary.total_invoice_value || 0,
+                    av: report.tax_summary?.total_assessable_value || 0,
+                    incentive: profit.total_incentives || 0,
+                    revenueRisk: report.tax_summary?.total_revenue_risk || 0,
+                },
 
-            // 5. Profit Protection
-            profitProtection: {
-                cashIncentive: profit.total_incentives || 0,
-                dutyDrawback: profit.duty_drawback || 0,
-                revenueRisk: profit.revenue_risk || 0,
-                ldcRiskScore: profit.ldc_graduation_risk_score || 0,
-                cbamLiability: profit.cbam_liability_eur || 0,
-            },
+                // 3. Strategic Findings (Text)
+                strategicFindings: auditJson.strategic_audit_report || "No strategic findings recorded.",
 
-            // 6. Line Items
-            lineItems: (auditJson.line_items || []).map((line: any, idx: number) => ({
-                format: idx + 1,
-                description: line.description,
-                qty: line.quantity || 0,
-                price: line.unit_price || 0,
-                hsCode: line.hs_code || 'N/A',
-                ldcImpact: line.ldc_impact?.impacted || false,
-                status: line.compliance?.valid ? 'Valid' : 'Check',
-            })),
+                // 4. CA Strategic Advice (Cards)
+                caAdvice: report.ca_recommendations?.map((rec: any) => ({
+                    advice: rec.advice,
+                    type: rec.type,
+                    savings: rec.savings || 0
+                })) || [],
 
-            // Sum Check
-            sumCheck: {
-                declared: compliance.declared_total || 0,
-                calculated: compliance.calculated_total || 0,
-                passed: compliance.sum_check_passed || false,
-            }
-        };
+                // 5. Profit Protection
+                profitProtection: {
+                    cashIncentive: profit.total_incentives || 0,
+                    dutyDrawback: profit.duty_drawback || 0,
+                    revenueRisk: profit.revenue_risk || 0,
+                    ldcRiskScore: profit.ldc_graduation_risk_score || 0,
+                    cbamLiability: profit.cbam_liability_eur || 0,
+                },
 
-        generateCFOReport(pdfData);
+                // 6. Line Items
+                lineItems: (auditJson.line_items || []).map((line: any, idx: number) => ({
+                    format: idx + 1,
+                    description: line.description,
+                    qty: line.quantity || 0,
+                    price: line.unit_price || 0,
+                    hsCode: line.hs_code || 'N/A',
+                    ldcImpact: line.ldc_impact?.impacted || false,
+                    status: line.compliance?.valid ? 'Valid' : 'Check',
+                })),
+
+                // Sum Check
+                sumCheck: {
+                    declared: compliance.declared_total || 0,
+                    calculated: compliance.calculated_total || 0,
+                    passed: compliance.sum_check_passed || false,
+                }
+            };
+
+            generateCFOReport(pdfData);
+        } catch (e) {
+            console.error("PDF Generation failed", e);
+        } finally {
+            setDownloadingId(null);
+        }
     };
 
     return (
@@ -186,10 +199,15 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
                                                 e.stopPropagation();
                                                 handleDownload(item);
                                             }}
-                                            className="p-2 hover:bg-white/10 rounded-full text-blue-400 hover:text-blue-300 transition-colors"
+                                            disabled={downloadingId === item.id}
+                                            className="p-2 hover:bg-white/10 rounded-full text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
                                             title="Download CFO Report"
                                         >
-                                            <Download size={16} />
+                                            {downloadingId === item.id ? (
+                                                <Loader2 size={16} className="animate-spin" />
+                                            ) : (
+                                                <Download size={16} />
+                                            )}
                                         </button>
                                     </td>
                                 </tr>
