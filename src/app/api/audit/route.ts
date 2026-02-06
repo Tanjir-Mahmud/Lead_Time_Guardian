@@ -298,7 +298,8 @@ ${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}*
                 invoice_no: data.metadata?.invoice_number || 'UNKNOWN',
                 fob_value: trueTotalFob, // Save CORRECTED value
                 hs_code: validatedItems[0]?.hs_code || 'MIXED',
-                status: 'Audited'
+                // STATUS PROTOCOL: Verified ONLY if Math is secure
+                status: mathErrorsFound ? 'Flagged' : 'Verified'
             }], { onConflict: 'invoice_no' })
             .select()
             .single();
