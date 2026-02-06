@@ -70,7 +70,7 @@ export const generateCFOReport = (data: PDFData) => {
         doc.setDrawColor(...color);
         doc.setLineWidth(0.5);
         doc.line(margin, y + 2, pageWidth - margin, y + 2);
-        return y + 10;
+        return y + 12;
     };
 
     const drawCard = (x: number, y: number, w: number, h: number, title: string, value: string, color: [number, number, number]) => {
@@ -78,14 +78,14 @@ export const generateCFOReport = (data: PDFData) => {
         doc.setDrawColor(200, 200, 200);
         doc.roundedRect(x, y, w, h, 2, 2, 'FD');
 
-        doc.setFontSize(8);
+        doc.setFontSize(7);
         doc.setTextColor(...colors.gray);
-        doc.text(title, x + 4, y + 8);
+        doc.text(title, x + (w / 2), y + 8, { align: 'center' }); // Centered title
 
-        doc.setFontSize(12);
+        doc.setFontSize(10);
         doc.setTextColor(...color);
         doc.setFont('helvetica', 'bold');
-        doc.text(value, x + 4, y + 18);
+        doc.text(value, x + (w / 2), y + 18, { align: 'center' }); // Centered value
     };
 
     // --- HEADER ---
@@ -104,7 +104,7 @@ export const generateCFOReport = (data: PDFData) => {
     const lines = doc.splitTextToSize(headerRightText, 80);
     doc.text(lines, pageWidth - margin - 80, 15, { align: 'left' });
 
-    let currentY = 50;
+    let currentY = 55;
 
     // --- 1. LOGISTICS ALERT & 2. MATH INTEGRITY (Side by Side) ---
     // Left Column: Logistics (40%)
@@ -120,15 +120,16 @@ export const generateCFOReport = (data: PDFData) => {
     doc.setDrawColor(...colors.blue);
     doc.line(margin, currentY + 2, margin + leftColWidth, currentY + 2);
 
-    const logBoxY = currentY + 6;
+    const logBoxY = currentY + 8;
     const logBoxWidth = (leftColWidth - 4) / 3;
+    const logBoxHeight = 25; // Increased height
 
     // Road
-    drawCard(margin, logBoxY, logBoxWidth, 20, 'ROAD', data.logistics.road, data.logistics.road === 'Clear' ? colors.green : colors.red);
+    drawCard(margin, logBoxY, logBoxWidth, logBoxHeight, 'ROAD', data.logistics.road, data.logistics.road.includes('Clear') ? colors.green : colors.red);
     // Sea
-    drawCard(margin + logBoxWidth + 2, logBoxY, logBoxWidth, 20, 'SEA', data.logistics.sea, data.logistics.sea === 'Smooth' ? colors.green : colors.gold);
+    drawCard(margin + logBoxWidth + 2, logBoxY, logBoxWidth, logBoxHeight, 'SEA', data.logistics.sea, data.logistics.sea.includes('Smooth') ? colors.green : colors.gold);
     // Weather
-    drawCard(margin + (logBoxWidth * 2) + 4, logBoxY, logBoxWidth, 20, 'RISK', data.logistics.weather, data.logistics.weather === 'Safe' ? colors.green : colors.red);
+    drawCard(margin + (logBoxWidth * 2) + 4, logBoxY, logBoxWidth, logBoxHeight, 'RISK', data.logistics.weather, data.logistics.weather.includes('Safe') ? colors.green : colors.red);
 
     // Section 2: Math Integrity
     doc.setFontSize(9);
@@ -137,7 +138,7 @@ export const generateCFOReport = (data: PDFData) => {
     doc.setDrawColor(...colors.gold);
     doc.line(rightColX, currentY + 2, pageWidth - margin, currentY + 2);
 
-    const mathY = currentY + 6;
+    const mathY = currentY + 8;
 
     const drawMathRow = (y: number, label: string, val: string, valColor: [number, number, number] = [0, 0, 0]) => {
         doc.setFontSize(8);
@@ -158,7 +159,7 @@ export const generateCFOReport = (data: PDFData) => {
     drawMathRow(mathY + 20, 'Cash Incentive (FOB * 0.08)', `$${data.mathIntegrity.incentive.toLocaleString()}`, colors.green);
     drawMathRow(mathY + 28, '2026 Revenue Risk (AV * 0.119)', `$${data.mathIntegrity.revenueRisk.toLocaleString()}`, colors.red);
 
-    currentY += 45;
+    currentY += 50;
 
     // --- 3. STRATEGIC AUDIT FINDINGS ---
     currentY = drawSectionHeader('3. STRATEGIC AUDIT FINDINGS (AI OBSERVATION)', currentY, [236, 72, 153]); // Pinkish
@@ -171,70 +172,74 @@ export const generateCFOReport = (data: PDFData) => {
     const strategicLines = doc.splitTextToSize(strategicText, pageWidth - (margin * 2));
     doc.text(strategicLines, margin, currentY);
 
-    currentY += (strategicLines.length * 4) + 10;
+    currentY += (strategicLines.length * 4.5) + 15;
 
     // --- 4. CA STRATEGIC ADVICE ---
     // If logic: check if space remains, else add page
-    if (currentY > 200) { doc.addPage(); currentY = 20; }
+    if (currentY > 220) { doc.addPage(); currentY = 20; }
     currentY = drawSectionHeader('4. CA STRATEGIC ADVICE (RULE BASED)', currentY, [168, 85, 247]); // Purple
 
     // Grid for advice
     const adviceWidth = (pageWidth - (margin * 3)) / 2;
+    const adviceHeight = 35; // Increased height for wrapping
+
     data.caAdvice.forEach((item, index) => {
         const x = index % 2 === 0 ? margin : margin + adviceWidth + margin;
-        const y = currentY + (Math.floor(index / 2) * 25);
+        const y = currentY + (Math.floor(index / 2) * (adviceHeight + 5));
 
         doc.setFillColor(...colors.lightGray);
         doc.setDrawColor(200, 200, 200);
-        doc.roundedRect(x, y, adviceWidth, 20, 2, 2, 'FD');
+        doc.roundedRect(x, y, adviceWidth, adviceHeight, 2, 2, 'FD');
 
         // Type Icon placeholder
         doc.setFillColor(0, 0, 0);
-        doc.circle(x + 10, y + 10, 6, 'F');
+        doc.circle(x + 10, y + 12, 8, 'F');
         doc.setTextColor(255, 215, 0);
-        doc.setFontSize(8);
-        doc.text(item.type === 'Logistics' ? 'L' : '$', x + 8.5, y + 12.5);
+        doc.setFontSize(9);
+        doc.text(item.type === 'Logistics' ? 'L' : '$', x + 10, y + 15, { align: 'center' }); // Centered icon text
 
-        // Text
+        // Text Wrapping
         doc.setTextColor(...colors.navy);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
-        doc.text(item.advice, x + 20, y + 8);
+        const adviceLines = doc.splitTextToSize(item.advice, adviceWidth - 35); // Leave space for icon and savings
+        doc.text(adviceLines, x + 22, y + 10);
 
         doc.setFontSize(7);
         doc.setTextColor(...colors.gray);
-        doc.text(item.type.toUpperCase(), x + 20, y + 15);
+        doc.text(item.type.toUpperCase(), x + 22, y + 25);
 
         // Savings
         doc.setFontSize(10);
         doc.setTextColor(...colors.green);
         doc.setFont('helvetica', 'bold');
-        doc.text(`+$${item.savings.toLocaleString()}`, x + adviceWidth - 5, y + 11, { align: 'right' });
+        doc.text(`+$${item.savings.toLocaleString()}`, x + adviceWidth - 5, y + 28, { align: 'right' });
     });
 
-    currentY += (Math.ceil(data.caAdvice.length / 2) * 25) + 10;
+    currentY += (Math.ceil(data.caAdvice.length / 2) * (adviceHeight + 5)) + 15;
 
     // --- 5. PROFIT PROTECTION ---
-    if (currentY > 220) { doc.addPage(); currentY = 20; }
+    if (currentY > 240) { doc.addPage(); currentY = 20; }
     currentY = drawSectionHeader('5. PROFIT PROTECTION & RISK', currentY, colors.green);
 
     const statBoxWidth = (pageWidth - (margin * 5)) / 4;
-    const statBoxHeight = 25;
+    const statBoxHeight = 30; // Increased height for breathing room
 
     const drawStatBox = (index: number, title: string, value: string, color: [number, number, number]) => {
         const x = margin + (index * (statBoxWidth + margin));
         doc.setDrawColor(...color);
         doc.setFillColor(255, 255, 255);
         doc.setLineWidth(0.5);
-        doc.roundedRect(x, currentY, statBoxWidth, statBoxHeight, 2, 2, 'D'); // Outline only to look clean
+        doc.roundedRect(x, currentY, statBoxWidth, statBoxHeight, 2, 2, 'D');
 
         doc.setFontSize(7);
         doc.setTextColor(...color);
         doc.setFont('helvetica', 'bold');
-        doc.text(title.toUpperCase(), x + 4, currentY + 8);
+        const titleLines = doc.splitTextToSize(title.toUpperCase(), statBoxWidth - 4);
+        doc.text(titleLines, x + (statBoxWidth / 2), currentY + 8, { align: 'center' });
 
         doc.setFontSize(11);
-        doc.text(value, x + 4, currentY + 18);
+        doc.text(value, x + (statBoxWidth / 2), currentY + 22, { align: 'center' });
     };
 
     drawStatBox(0, 'Cash Incentive', `$${data.profitProtection.cashIncentive.toLocaleString()}`, colors.green);
@@ -243,14 +248,14 @@ export const generateCFOReport = (data: PDFData) => {
     drawStatBox(3, 'LDC Risk Score', `${data.profitProtection.ldcRiskScore} / 10`, [249, 115, 22]); // Orange
 
     if (data.profitProtection.cbamLiability > 0) {
-        currentY += 30;
+        currentY += 35;
         doc.setFillColor(...colors.lightGray);
         doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 15, 2, 2, 'F');
         doc.setFontSize(8);
         doc.setTextColor(...colors.navy);
         doc.text(`EU CBAM Liability Warning: Estimated €${data.profitProtection.cbamLiability.toLocaleString()} carbon certificate cost.`, margin + 4, currentY + 10);
     } else {
-        currentY += 30;
+        currentY += 35;
     }
 
     // --- SUM CHECK VALIDATION ---
