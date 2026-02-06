@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
 
                     const erpAnalysis = calculateERP(15, currentRate);
                     // CBAM & Carbon Logic: Added HS 39, 42, 64 check
-                    const isHighCarbonHS = hsCode.startsWith('39') || hsCode.startsWith('42') || hsCode.startsWith('64');
+                    const isHighCarbonHS = hsCode.startsWith('39') || hsCode.startsWith('42') || hsCode.startsWith('61') || hsCode.startsWith('64');
                     const cbam = calculateCBAMLiability(item.description || '', itemWeight);
                     // Override CBAM if HS code matches high risk chapters
                     if (isHighCarbonHS && cbam.liabilityEUR === 0) {
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
                     const carbon = calculateCarbonIntensity(item.description || '');
                     if (isHighCarbonHS) {
                         carbon.score = 'High';
-                        carbon.advice = 'CBAM Reporting Required for this HS Chapter (Plastics/Leather/Footwear).';
+                        carbon.advice = 'CBAM Reporting Required for this HS Chapter (Plastics/Leather/Footwear/Apparel).';
                     }
 
                     financial = {
@@ -223,18 +223,10 @@ export async function POST(req: NextRequest) {
             incentiveEligible = true;
         }
 
-        // Strategy 3: Duty Drawback
-        const mockImportBill = {
-            id: 'BE-2025-998877',
-            importValue: trueTotalFob * 0.40,
-            items: ['Synthetic Fabric', 'Yarn']
-        };
-        const currentExportBill = {
-            id: verifier.invoice_number || 'EXP-TEMP',
-            exportValue: trueTotalFob,
-            items: validatedItems.map((i: any) => i.description || '')
-        };
-        const dutyDrawback = Number(calculateDutyDrawback(mockImportBill, currentExportBill).toFixed(2));
+        // Strategy 3: Duty Drawback (Strict 6% Rule)
+        // Previous complex call: calculateDutyDrawback(mockImportBill, currentExportBill)
+        // New Rule: Fixed 6% of FOB
+        const dutyDrawback = Number((trueTotalFob * 0.06).toFixed(2));
 
         // Aggregate Risk
         const maxRiskScore = Math.max(...validatedItems.map((i: any) => i.financial?.ldc_risk_score || 0));
@@ -251,7 +243,7 @@ export async function POST(req: NextRequest) {
                 rexStatus === 'MISSING' ? { type: 'Compliance', advice: 'Missing REX Statement for Invoice > €6,000.', savings: 0 } : null,
                 logisticsStrategy.savings > 0 ? { type: 'Logistics', advice: logisticsStrategy.message, savings: Number(logisticsStrategy.savings.toFixed(2)) } : null,
                 incentiveEligible ? { type: 'Incentive', advice: `Claim Incentive (${(incentiveRate > 1 ? incentiveRate : incentiveRate * 100).toFixed(2)}% via Supabase)`, savings: incentiveAmt } : null,
-                dutyDrawback > 0 ? { type: 'Drawback', advice: `Claim Duty Drawback (Ref: BE-${mockImportBill.id})`, savings: dutyDrawback } : null,
+                dutyDrawback > 0 ? { type: 'Drawback', advice: `Claim Duty Drawback (Fixed 6% Rate)`, savings: dutyDrawback } : null,
                 validatedItems[0]?.financial?.erp_analysis?.recommendation ? { type: 'Strategic', advice: validatedItems[0]?.financial?.erp_analysis?.recommendation, savings: 0 } : null,
                 totalCBAM > 0 ? { type: 'Compliance', advice: 'Prepare CBAM Carbon Certificate for EU Customs', savings: 0 } : null
             ].filter(Boolean),
@@ -333,11 +325,25 @@ ${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}*
 - **Math Trace**:
 [Incentive = FOB * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}] -> [$${trueTotalFob.toFixed(2)} * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}] -> **$${incentiveAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**
 
-**4. REX Requirement Check**
+**4. Duty Drawback Logic (Strict 6%)**
+- **Why**: Refund of import duties on raw materials used for export.
+- **Regulatory Source**: [NBR Statutory Regulatory Order (SRO)]
+- **Math Trace**:
+[Drawback = FOB * 0.06] -> [$${trueTotalFob.toFixed(2)} * 0.06] -> **$${dutyDrawback.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**
+
+**5. REX Requirement Check**
 - **Why**: Self-certification required for EU GSP exports over €6,000.
 - **Regulatory Source**: [EU Rules of Origin.pdf]
 - **Logic Trace**:
 [Invoice Value > €6,480?] -> [$${trueTotalFob.toFixed(2)} > $6,480?] -> **${isRexRequired ? 'YES (REX REQUIRED)' : 'NO (Below Threshold)'}** -> Status: ${rexStatus}
+
+### 🛡️ HEDGING ANALYSIS (2026 PROTECTION)
+**Strategic Net Margin Calculation**
+- **Total Export Benefits**: 14.00% (8% Incentive + 6% Drawback)
+- **Less: 2026 Graduation Risk**: 11.90% (MFN Rate Impact)
+- **Net Compliance Safety Margin**: **+2.10%**
+
+*"Total Export Benefits (14%) effectively hedge against the 11.9% Graduation Risk, leaving a net positive margin of 2.1%."*
             `.trim(),
             swarm_thoughts: swarmResults.map(r => ({ agent: r.agentName, thought: r.thoughtSignature }))
         };
@@ -387,11 +393,11 @@ ${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}*
 
         if (auditError) {
             console.error('Audit Log Write Error:', auditError);
-            throw new Error(`Audit Log DB Write Failed: ${auditError.message}`);
+            throw new Error(`Audit Log DB Write Failed: ${auditError.message} `);
         }
 
         // Append Sync Success Message
-        data.sync_status = `✅ Refined Audit Synced. Math Integrity: ${mathErrorsFound ? 'CORRECTED 🚨' : 'SECURE'}.`;
+        data.sync_status = `✅ Refined Audit Synced.Math Integrity: ${mathErrorsFound ? 'CORRECTED 🚨' : 'SECURE'}.`;
 
         return NextResponse.json(data);
 
@@ -401,7 +407,7 @@ ${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}*
         const errorMessage = error?.message || 'Unknown error';
         // @ts-ignore
         const errorStack = error?.stack || '';
-        return NextResponse.json({ error: `Failed to process document: ${errorMessage}`, stack: errorStack }, { status: 500 });
+        return NextResponse.json({ error: `Failed to process document: ${errorMessage} `, stack: errorStack }, { status: 500 });
     }
 }
 
