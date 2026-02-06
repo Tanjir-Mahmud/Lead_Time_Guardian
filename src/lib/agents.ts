@@ -1,5 +1,5 @@
 
-import { openrouter } from './openrouter';
+import { getOpenRouter } from './openrouter';
 import { validateHSCode } from './tariffs';
 
 export interface AgentResult {
@@ -122,7 +122,7 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
 
     const agentPromises = prompts.map(async (agent) => {
         try {
-            const response = await openrouter.chat.completions.create({
+            const response = await getOpenRouter().chat.completions.create({
                 model: 'google/gemini-3-flash-preview',
                 messages: [
                     { role: 'system', content: agent.system },

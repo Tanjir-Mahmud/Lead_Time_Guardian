@@ -1,17 +1,26 @@
 
 import { OpenAI } from 'openai';
 
-const openRouter = new OpenAI({
-    apiKey: process.env.OPENROUTER_API_KEY,
-    baseURL: 'https://openrouter.ai/api/v1',
-    dangerouslyAllowBrowser: true, // Allow client-side usage if needed, but preferred server-side
-});
+
+
+let openRouterInstance: OpenAI | null = null;
+
+export function getOpenRouter(): OpenAI {
+    if (!openRouterInstance) {
+        openRouterInstance = new OpenAI({
+            apiKey: process.env.OPENROUTER_API_KEY,
+            baseURL: 'https://openrouter.ai/api/v1',
+            dangerouslyAllowBrowser: true, // Allow client-side usage if needed, but preferred server-side
+        });
+    }
+    return openRouterInstance;
+}
 
 export async function streamGeminiReasoning(
     messages: any[],
     onChunk: (content: string, reasoning: string) => void
 ) {
-    const stream = await openRouter.chat.completions.create({
+    const stream = await getOpenRouter().chat.completions.create({
         model: 'google/gemini-3-flash-preview',
         messages,
         stream: true,
@@ -45,7 +54,9 @@ export async function streamGeminiReasoning(
     }
 }
 
-// Actually, let's implement a more robust server-side action or route.
-// But for now this helper.
-
-export const openrouter = openRouter;
+// Deprecated: prefer getOpenRouter()
+export const openrouter = {
+    get chat() {
+        return getOpenRouter().chat;
+    }
+};

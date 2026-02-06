@@ -1,5 +1,5 @@
 
-import { openrouter } from '@/lib/openrouter';
+
 import { validateHSCode } from '@/lib/tariffs';
 import { runComplianceSwarm } from '@/lib/agents';
 import { NextRequest, NextResponse } from 'next/server';
