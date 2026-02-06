@@ -5,7 +5,7 @@ import { runComplianceSwarm } from '@/lib/agents';
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateAV_Strict, calculateTTI, calculateRevenueRisk, calculateERP, calculateLDCRiskScore, calculateCBAMLiability, calculateLDCRisk_Financial } from '@/lib/financial-brain/calculations';
 import { analyzeAirToSeaSavings, auditCashIncentives, calculateDutyDrawback } from '@/lib/financial-brain/strategies';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 const SYSTEM_PROMPT = `
 You are an expert logistics document auditor. Extract the following fields from the image:
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         // --- SUPABASE INTEGRATION START (Pre-Fetch for Agent Context) ---
         let userId = '00000000-0000-0000-0000-000000000000';
         // Try to fetch user ID for 'Synthetic Steps Ltd'
-        const { data: user } = await supabase
+        const { data: user } = await getSupabase()
             .from('users')
             .select('id')
             .eq('company_name', 'Synthetic Steps Ltd')
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
         let ldcRiskRate = 0.119;
 
         // We fetch 'Textile' or 'General' as a baseline for the Agent's strategic advice
-        const { data: rates } = await supabase
+        const { data: rates } = await getSupabase()
             .from('regulatory_rates')
             .select('incentive_rate, ldc_risk_rate')
             // .eq('category', 'Textile') // defaulting to likely category for Synthetic Steps
@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
         };
 
         // --- AUDIT LOG STORAGE ---
-        await supabase.from('audit_logs').insert([{
+        await getSupabase().from('audit_logs').insert([{
             user_id: userId,
             invoice_number: data.metadata?.invoice_number || 'UNKNOWN',
             assessable_value: cfoReport.tax_summary.total_assessable_value,

@@ -1,7 +1,17 @@
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-import { createClient } from '@supabase/supabase-js'
+let supabaseInstance: SupabaseClient | null = null
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+export const getSupabase = () => {
+    if (!supabaseInstance) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+        if (!supabaseUrl || !supabaseAnonKey) {
+            throw new Error('Supabase URL and Key are required!')
+        }
+
+        supabaseInstance = createClient(supabaseUrl, supabaseAnonKey)
+    }
+    return supabaseInstance
+}
