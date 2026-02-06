@@ -197,7 +197,7 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
                                     <td className="px-4 py-3 font-mono text-white group-hover:text-gold transition-colors">
                                         {item.invoice_no}
                                     </td>
-                                    <td className="px-4 py-3 text-gold">${item.fob_value?.toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-gold">${item.fob_value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     <td className="px-4 py-3 font-mono text-xs">{item.hs_code}</td>
                                     <td className="px-4 py-3 text-right text-gray-500 text-xs">
                                         {new Date(item.created_at).toLocaleDateString()}

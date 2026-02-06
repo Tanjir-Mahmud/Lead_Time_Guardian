@@ -118,12 +118,12 @@ export const generateCFOReport = (data: PDFData) => {
         margin: { left: margin, right: margin },
         head: [['Metric', 'Formula / Reference', 'Value']],
         body: [
-            ['FOB Value (True)', 'Invoice Total (Validated)', `$${data.mathIntegrity.fob.toLocaleString()}`],
-            ['Assessable Value (AV)', '(FOB * 1.01) * 1.01', `$${data.mathIntegrity.av.toLocaleString()}`],
+            ['FOB Value (True)', 'Invoice Total (Validated)', `$${data.mathIntegrity.fob.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+            ['Assessable Value (AV)', '(FOB * 1.01) * 1.01', `$${data.mathIntegrity.av.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
             ['Math Integrity', declaredVsCalc, mathStatus],
             ['REX Compliance', '> €6,000 Rule', data.rexStatus || 'N/A'],
-            ['Cash Incentive', 'FOB * 8% (Ref: FE-2025)', `$${data.mathIntegrity.incentive.toLocaleString()}`],
-            ['Revenue Risk', 'AV * 11.9% (LDC Grading)', `$${data.mathIntegrity.revenueRisk.toLocaleString()}`],
+            ['Cash Incentive', 'FOB * 8% (Ref: FE-2025)', `$${data.mathIntegrity.incentive.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+            ['Revenue Risk', 'AV * 11.9% (LDC Grading)', `$${data.mathIntegrity.revenueRisk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
         ],
         theme: 'grid',
         styles: {
@@ -218,7 +218,7 @@ export const generateCFOReport = (data: PDFData) => {
     const adviceBody = data.caAdvice.map(item => [
         item.type === 'Logistics' ? 'LOGISTICS' : 'FINANCIAL',
         item.advice,
-        `+$${item.savings.toLocaleString()}`
+        `+$${item.savings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     ]);
 
     autoTable(doc, {
@@ -279,6 +279,18 @@ export const generateCFOReport = (data: PDFData) => {
     currentY += 25; // Spacing after section
 
 
+    // 2026 Graduation Risk: Use 2-decimal formatting strictly
+    // Formula: (FOB * 1.01) * 1.01
+    // 2026 Graduation Risk: AV * 11.9%
+    // Note: We use the EXACT same string mapping 
+    doc.text(`- **Assessable Value (AV)**: $${data.mathIntegrity.av.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, margin, currentY + 10); // Simulated text placement matching prompt request
+    // This part of the file generates the 'Strategic Audit Report' text block in the JSON, but here strictly formatting the table.
+    // The prompt requested ensuring Section 2 and Section 5 match.
+    // Section 2 is the 'Financial Integrity Audit' table above (Line 116).
+    // Section 3 is 'Strategic Advice' (Line 215).
+    // The user mentioned a "Strategic Audit Report" text block in route.ts, let's update route.ts mostly for that.
+    // But here in PDF we ensure every $ output has 2 decimals.
+
     // --- 6. INVOICE LINE ITEMS (Pagination Safe) ---
     if (currentY > pageHeight - 40) {
         doc.addPage();
@@ -296,7 +308,7 @@ export const generateCFOReport = (data: PDFData) => {
             item.description,
             item.hsCode,
             item.qty.toLocaleString(),
-            `$${item.price}`,
+            `$${item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             item.status
         ]),
         theme: 'grid',
