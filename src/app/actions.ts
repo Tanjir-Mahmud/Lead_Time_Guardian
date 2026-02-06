@@ -1,13 +1,13 @@
 'use server';
 
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 // --- Analytics Actions ---
 
 export async function getAnalyticsData() {
     try {
         // Fetch Shipments
-        const { data: shipments, error: shipmentsError } = await supabase
+        const { data: shipments, error: shipmentsError } = await getSupabase()
             .from('shipments')
             .select('*')
             .eq('user_id', 'Synthetic Steps Ltd'); // Filter by User ID
@@ -15,7 +15,7 @@ export async function getAnalyticsData() {
         if (shipmentsError) throw shipmentsError;
 
         // Fetch Audit Logs
-        const { data: auditLogs, error: auditError } = await supabase
+        const { data: auditLogs, error: auditError } = await getSupabase()
             .from('audit_logs')
             .select('*')
             .eq('user_id', 'Synthetic Steps Ltd');
@@ -33,7 +33,7 @@ export async function getAnalyticsData() {
 
 export async function getRegulatoryRates(category: string = 'General') {
     // Fallback to 'General' or specific logic if category not found
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('regulatory_rates')
         .select('incentive_rate, ldc_risk_rate')
         .eq('category', category)
@@ -52,7 +52,7 @@ export async function getRegulatoryRates(category: string = 'General') {
 }
 
 export async function saveAuditLog(logEntry: any) {
-    const { error } = await supabase
+    const { error } = await getSupabase()
         .from('audit_logs')
         .insert([logEntry]);
 
