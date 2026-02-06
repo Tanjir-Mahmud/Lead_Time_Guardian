@@ -50,30 +50,50 @@ export default function AnalyticsPage() {
                     {/* Main Inteactive Chart Area (Mock for now, but layout ready) */}
                     <div className="col-span-2 bg-navy/50 border border-white/5 rounded-xl p-6">
                         <h3 className="text-lg font-bold text-white mb-6">Cost Efficiency Trend</h3>
-                        <div className="h-64 flex items-end justify-between gap-2 px-4 pb-2 border-b border-white/10">
-                            {[45, 60, 55, 70, 65, 80, 75, 85, 90, 80, 95, 100].map((h, i) => (
-                                <div key={i} className="w-full bg-gold/20 hover:bg-gold/40 transition-all relative group rounded-t" style={{ height: `${h}%` }}>
-                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                                        ${h}k
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        {data.auditLogs.length > 0 ? (
+                            <div className="h-64 flex items-end justify-between gap-2 px-4 pb-2 border-b border-white/10">
+                                {/* Simplified Dynamic Bar Chart based on audit log count or value - strictly placeholder mapped to real length to show activity if any */}
+                                {data.auditLogs.slice(0, 12).map((log, i) => {
+                                    const val = (log.incentive_amount || 0) / 100; // Adjusted scale
+                                    const h = Math.min(Math.max(val, 5), 100); // Cap height percent
+                                    return (
+                                        <div key={i} className="w-full bg-gold/20 hover:bg-gold/40 transition-all relative group rounded-t" style={{ height: `${h}%` }}>
+                                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                                ${(log.incentive_amount || 0).toFixed(0)}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        ) : (
+                            <div className="h-64 flex items-center justify-center text-gray-500 text-sm border-b border-white/10">
+                                No audit data available to generate trends.
+                            </div>
+                        )}
+
                         <div className="flex justify-between text-xs text-gray-500 mt-2 px-2">
-                            <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span>
-                            <span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
+                            <span>Recent Audits (Chronological)</span>
                         </div>
                     </div>
 
                     {/* Regional Breakdown */}
                     <div className="bg-navy/50 border border-white/5 rounded-xl p-6">
                         <h3 className="text-lg font-bold text-white mb-6">Export Destinations</h3>
-                        <div className="space-y-6">
-                            <ProgressRow label="Germany (Hamburg)" percent={45} color="bg-gold" />
-                            <ProgressRow label="USA (New York)" percent={30} color="bg-blue-500" />
-                            <ProgressRow label="UK (Southampton)" percent={15} color="bg-alertRed" />
-                            <ProgressRow label="Others" percent={10} color="bg-gray-500" />
-                        </div>
+                        {data.shipments.length > 0 ? (
+                            <div className="space-y-6">
+                                {/* Dynamic Destinations based on actual shipments */}
+                                {Array.from(new Set(data.shipments.map(s => s.destination || 'Unknown'))).slice(0, 4).map((dest, i) => {
+                                    const count = data.shipments.filter(s => (s.destination || 'Unknown') === dest).length;
+                                    const total = data.shipments.length;
+                                    const percent = Math.round((count / total) * 100);
+                                    return <ProgressRow key={i} label={dest} percent={percent} color={i === 0 ? "bg-gold" : "bg-blue-500"} />
+                                })}
+                            </div>
+                        ) : (
+                            <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
+                                No shipments found.
+                            </div>
+                        )}
                     </div>
                 </div>
 

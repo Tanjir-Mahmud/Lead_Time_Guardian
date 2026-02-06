@@ -4,7 +4,8 @@ import dynamic from 'next/dynamic';
 import { LayoutDashboard, FileCheck, Anchor, TrendingUp, AlertTriangle, RefreshCw, Bot, ChevronLeft, ChevronRight } from 'lucide-react';
 import { LostRevenueMeter } from '@/components/LostRevenueMeter';
 import { CommandCenterShell } from '@/components/CommandCenterShell';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getAnalyticsData } from '@/app/actions';
 
 // Dynamic import for Map to avoid SSR issues
 const SmartMap = dynamic(() => import('@/components/SmartMap'), {
@@ -30,17 +31,81 @@ function KPICard({ title, value, sub, icon: Icon, color }: any) {
     )
 }
 
-
-
 export default function Home() {
+    const [stats, setStats] = useState({
+        totalSavings: 0,
+        avgLeadTime: 0,
+        onTimeRate: '0.0',
+        carbonOffset: 0
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        async function fetchStats() {
+            setLoading(true);
+            try {
+                const { shipments, auditLogs } = await getAnalyticsData();
+
+                // Calculations
+                const totalSavings = auditLogs.reduce((acc, log) => acc + (log.incentive_amount || 0), 0);
+
+                const avgLeadTimeRaw = shipments.reduce((acc, s) => acc + (s.lead_time_days || 0), 0);
+                const avgLeadTime = shipments.length > 0 ? Math.round(avgLeadTimeRaw / shipments.length) : 0;
+
+                const onTimeCount = shipments.filter(s => s.status === 'Delivered').length;
+                const onTimeRate = shipments.length > 0 ? ((onTimeCount / shipments.length) * 100).toFixed(1) : '0.0';
+
+                // Mocking carbon offset based on shipment weight or generic factor if real data missing
+                // For now, let's say 0 if no shipments, else some rough calc or just 0 to be safe.
+                const carbonOffset = 0;
+
+                setStats({
+                    totalSavings,
+                    avgLeadTime,
+                    onTimeRate,
+                    carbonOffset
+                });
+            } catch (e) {
+                console.error("Failed to fetch dashboard stats", e);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchStats();
+    }, []);
+
     return (
         <CommandCenterShell title="Logistics Command Center" subtitle="AI-Powered Central Operations">
             {/* Dashboard Widgets Grid */}
             <div className="grid grid-cols-4 gap-4 shrink-0 mb-6">
-                <KPICard title="Total Savings" value="$2.4M" sub="+12.5% vs last month" icon={TrendingUp} color="text-green-500" />
-                <KPICard title="Avg Lead Time" value="14 Days" sub="-3.2 Days improvement" icon={RefreshCw} color="text-blue-500" />
-                <KPICard title="On-Time Delivery" value="98.2%" sub="+1.4% Efficiency" icon={FileCheck} color="text-purple-500" />
-                <KPICard title="Carbon Offset" value="450 Tons" sub="Target: 500 Tons" icon={Anchor} color="text-emerald-500" />
+                <KPICard
+                    title="Total Savings"
+                    value={loading ? "..." : `$${(stats.totalSavings / 1000).toFixed(1)}K`}
+                    sub={loading ? "Loading..." : "Total Incentives"}
+                    icon={TrendingUp}
+                    color="text-green-500"
+                />
+                <KPICard
+                    title="Avg Lead Time"
+                    value={loading ? "..." : `${stats.avgLeadTime} Days`}
+                    sub={loading ? "Loading..." : "Live Average"}
+                    icon={RefreshCw}
+                    color="text-blue-500"
+                />
+                <KPICard
+                    title="On-Time Delivery"
+                    value={loading ? "..." : `${stats.onTimeRate}%`}
+                    sub={loading ? "Loading..." : "Efficiency Rate"}
+                    icon={FileCheck}
+                    color="text-purple-500"
+                />
+                <KPICard
+                    title="Carbon Offset"
+                    value={loading ? "..." : `${stats.carbonOffset} Tons`}
+                    sub="Target: 500 Tons"
+                    icon={Anchor}
+                    color="text-emerald-500"
+                />
             </div>
 
             {/* Active Operations Layer (Map + Live Meter) */}
