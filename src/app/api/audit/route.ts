@@ -170,7 +170,15 @@ export async function POST(req: NextRequest) {
 
         if (isGlobalMathError) mathErrorsFound = true;
 
+        if (isGlobalMathError) mathErrorsFound = true;
+
+        // SUM RULE: Strict Logic - True Total is the exclusive basis
         const sumCheckPassed = !mathErrorsFound;
+
+        // 3. GLOBAL VARIABLE LOCK (The Sync Rule)
+        // Calculate strictly from the Aggregated Total First
+        const strictGlobalAV = calculateAV_Strict(trueTotalFob);
+        const strictGlobalRisk = strictGlobalAV * 0.119; // Enforced 11.9% Rule
 
         // Compliance Checks
         // REX Rule: > €6,000 (Approx $6,480 USD)
@@ -233,15 +241,15 @@ export async function POST(req: NextRequest) {
             profit_protection: {
                 total_incentives: incentiveAmt,
                 duty_drawback: dutyDrawback,
-                revenue_risk: validatedItems.reduce((sum: number, i: any) => sum + (i.financial?.revenue_at_risk || 0), 0),
+                revenue_risk: strictGlobalRisk, // UNIFIED: Syncs with Tax Summary (Section 5 Sync)
                 ldc_graduation_risk_score: maxRiskScore,
                 cbam_liability_eur: totalCBAM
             },
             logistics_advice: logisticsStrategy,
             incentive_audit: { eligible: incentiveEligible, potentialReward: incentiveAmt },
             tax_summary: {
-                total_assessable_value: validatedItems.reduce((sum: number, i: any) => sum + (i.financial?.assessable_value || 0), 0),
-                total_revenue_risk: validatedItems.reduce((sum: number, i: any) => sum + (i.financial?.revenue_at_risk || 0), 0)
+                total_assessable_value: strictGlobalAV, // LOCKED: Uses Global Variable
+                total_revenue_risk: strictGlobalRisk    // LOCKED: Uses Global Variable
             },
             sustainability: {
                 carbon_score: validatedItems.some((i: any) => i.financial?.carbon_impact?.score === 'High') ? 'High' :
@@ -316,9 +324,9 @@ ${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}*
         // 2. Insert into 'audit_logs' linked to shipment
         const auditPayload: any = {
             shipment_id: shipmentData.id,
-            assessable_value: cfoReport.tax_summary.total_assessable_value,
+            assessable_value: strictGlobalAV, // DATABASE SYNC: Corrected Value
             incentive_amount: cfoReport.profit_protection.total_incentives,
-            ldc_risk_value: cfoReport.tax_summary.total_revenue_risk,
+            ldc_risk_value: strictGlobalRisk, // DATABASE SYNC: Corrected Value
             risk_score: cfoReport.profit_protection.ldc_graduation_risk_score,
             audit_json: data, // Keeping full JSON for redundancy/debugging
             user_id: user.id, // Tag with user_id for RLS ownership
