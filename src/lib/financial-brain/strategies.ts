@@ -122,7 +122,7 @@ export async function analyzeAirToSeaSavings(air: LogisticsOption, sea: Logistic
         return {
             recommended: 'Sea',
             savings: savings,
-            message: `Port status is ${liveStatus.sea} & Weather is ${liveStatus.weather}. Switch to Sea Freight to save $${savings.toLocaleString()}.`
+            message: `Port status is ${liveStatus.sea} & Weather is ${liveStatus.weather}. Switch to Sea Freight to save $${savings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
         };
     }
 

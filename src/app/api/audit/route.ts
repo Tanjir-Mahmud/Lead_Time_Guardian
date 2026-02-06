@@ -131,8 +131,20 @@ export async function POST(req: NextRequest) {
                     const ldcFinancialRisk = av * riskRateDecimal;
 
                     const erpAnalysis = calculateERP(15, currentRate);
+                    // CBAM & Carbon Logic: Added HS 39, 42, 64 check
+                    const isHighCarbonHS = hsCode.startsWith('39') || hsCode.startsWith('42') || hsCode.startsWith('64');
                     const cbam = calculateCBAMLiability(item.description || '', itemWeight);
+                    // Override CBAM if HS code matches high risk chapters
+                    if (isHighCarbonHS && cbam.liabilityEUR === 0) {
+                        cbam.liabilityEUR = Number((itemValue * 0.05).toFixed(2)); // Estimated liability
+                        cbam.applicable = true;
+                    }
+
                     const carbon = calculateCarbonIntensity(item.description || '');
+                    if (isHighCarbonHS) {
+                        carbon.score = 'High';
+                        carbon.advice = 'CBAM Reporting Required for this HS Chapter (Plastics/Leather/Footwear).';
+                    }
 
                     financial = {
                         assessable_value: av,
@@ -235,7 +247,7 @@ export async function POST(req: NextRequest) {
                 future_tti_rate: (validatedItems[0]?.compliance?.tariff_rate || 0) + (ldcRiskRate > 1 ? ldcRiskRate : ldcRiskRate * 100),
             },
             ca_recommendations: [
-                mathErrorsFound ? { type: 'Math Integrity', advice: `🚨 CRITICAL: Math Error Detected. Declared $${declaredTotal.toLocaleString()}, True Total $${calculatedSum.toLocaleString()}. System Corrected.`, savings: 0 } : null,
+                mathErrorsFound ? { type: 'Math Integrity', advice: `🚨 CRITICAL: Math Error Detected. Declared $${declaredTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, True Total $${calculatedSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. System Corrected.`, savings: 0 } : null,
                 rexStatus === 'MISSING' ? { type: 'Compliance', advice: 'Missing REX Statement for Invoice > €6,000.', savings: 0 } : null,
                 logisticsStrategy.savings > 0 ? { type: 'Logistics', advice: logisticsStrategy.message, savings: Number(logisticsStrategy.savings.toFixed(2)) } : null,
                 incentiveEligible ? { type: 'Incentive', advice: `Claim Incentive (${(incentiveRate > 1 ? incentiveRate : incentiveRate * 100).toFixed(2)}% via Supabase)`, savings: incentiveAmt } : null,

@@ -137,7 +137,7 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                         </div>
                         <div className="bg-black/40 p-4 rounded-lg border border-white/10">
                             <p className="text-gray-400 text-xs">Invoice Total</p>
-                            <p className="text-lg font-mono text-gold">${result.metadata?.total_invoice_value || 0}</p>
+                            <p className="text-lg font-mono text-gold">${result.metadata?.total_invoice_value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
                         </div>
 
                     </div>
