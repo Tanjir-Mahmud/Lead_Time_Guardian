@@ -1,3 +1,4 @@
+'use client';
 
 import { DocumentAuditor } from '@/components/DocumentAuditor';
 import { CommandCenterShell } from '@/components/CommandCenterShell';
