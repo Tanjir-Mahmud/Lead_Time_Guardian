@@ -313,6 +313,31 @@ export async function POST(req: NextRequest) {
 
 **Strategic Recommendations**
 ${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}**: ${r?.advice}`).join('\n')}
+
+### 🔍 AUDIT TRACEABILITY
+**1. Assessable Value (AV) Calculation**
+- **Why**: Determining the base value for customs duty assessment.
+- **Regulatory Source**: [Customs Act 1969, Section 25] & [STS Chapter 2]
+- **Math Trace**:
+[AV = (FOB * 1.01) * 1.01] -> [$${trueTotalFob.toFixed(2)} * 1.01] -> [$${(trueTotalFob * 1.01).toFixed(2)} * 1.01] -> **$${strictGlobalAV.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**
+
+**2. 2026 LDC Graduation Risk (Revenue Risk)**
+- **Why**: Post-LDC graduation, standard GSP rate transitions to MFN rate (11.9% Jump).
+- **Regulatory Source**: [STS Chapter 2] & [Customs Act 23 - Graduation Clauses]
+- **Math Trace**:
+[Risk = AV * 0.119] -> [$${strictGlobalAV.toFixed(2)} * 0.119] -> **$${strictGlobalRisk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**
+
+**3. Cash Incentive Logic**
+- **Why**: Government subsidy for export sectors (currently set at ${incentiveRate > 1 ? incentiveRate : incentiveRate * 100}%).
+- **Regulatory Source**: [FEB Circular: jul272025fepd30.pdf]
+- **Math Trace**:
+[Incentive = FOB * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}] -> [$${trueTotalFob.toFixed(2)} * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}] -> **$${incentiveAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**
+
+**4. REX Requirement Check**
+- **Why**: Self-certification required for EU GSP exports over €6,000.
+- **Regulatory Source**: [EU Rules of Origin.pdf]
+- **Logic Trace**:
+[Invoice Value > €6,480?] -> [$${trueTotalFob.toFixed(2)} > $6,480?] -> **${isRexRequired ? 'YES (REX REQUIRED)' : 'NO (Below Threshold)'}** -> Status: ${rexStatus}
             `.trim(),
             swarm_thoughts: swarmResults.map(r => ({ agent: r.agentName, thought: r.thoughtSignature }))
         };
