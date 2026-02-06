@@ -255,15 +255,16 @@ export async function POST(req: NextRequest) {
 
         // --- AUDIT LOG STORAGE (Integrity Protocol) ---
         // 1. Insert into 'shipments'
+        // 1. Insert or Update 'shipments' (Handle Re-Audit)
         const { data: shipmentData, error: shipmentError } = await getSupabase()
             .from('shipments')
-            .insert([{
+            .upsert([{
                 user_id: userId,
                 invoice_no: data.metadata?.invoice_number || 'UNKNOWN',
                 fob_value: data.metadata?.total_invoice_value || 0,
                 hs_code: validatedItems[0]?.hs_code || 'MIXED',
                 status: 'Audited'
-            }])
+            }], { onConflict: 'invoice_no' })
             .select()
             .single();
 
