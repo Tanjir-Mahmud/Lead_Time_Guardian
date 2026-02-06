@@ -177,8 +177,12 @@ export async function POST(req: NextRequest) {
 
         // 3. GLOBAL VARIABLE LOCK (The Sync Rule)
         // Calculate strictly from the Aggregated Total First
-        const strictGlobalAV = calculateAV_Strict(trueTotalFob);
-        const strictGlobalRisk = strictGlobalAV * 0.119; // Enforced 11.9% Rule
+        const strictGlobalAV_Raw = calculateAV_Strict(trueTotalFob);
+        const strictGlobalRisk_Raw = strictGlobalAV_Raw * 0.119; // Enforced 11.9% Rule
+
+        // PRECISION LOCK: Round to 2 decimals BEFORE usage to ensure DB === UI
+        const strictGlobalAV = Number(strictGlobalAV_Raw.toFixed(2));
+        const strictGlobalRisk = Number(strictGlobalRisk_Raw.toFixed(2));
 
         // Compliance Checks
         // REX Rule: > €6,000 (Approx $6,480 USD)
@@ -202,7 +206,8 @@ export async function POST(req: NextRequest) {
 
         if (incentiveRate > 0) {
             const rateDecimal = incentiveRate > 1 ? incentiveRate / 100 : incentiveRate;
-            incentiveAmt = trueTotalFob * rateDecimal;
+            // Round incentive immediately
+            incentiveAmt = Number((trueTotalFob * rateDecimal).toFixed(2));
             incentiveEligible = true;
         }
 
@@ -217,11 +222,11 @@ export async function POST(req: NextRequest) {
             exportValue: trueTotalFob,
             items: validatedItems.map((i: any) => i.description || '')
         };
-        const dutyDrawback = calculateDutyDrawback(mockImportBill, currentExportBill);
+        const dutyDrawback = Number(calculateDutyDrawback(mockImportBill, currentExportBill).toFixed(2));
 
         // Aggregate Risk
         const maxRiskScore = Math.max(...validatedItems.map((i: any) => i.financial?.ldc_risk_score || 0));
-        const totalCBAM = validatedItems.reduce((sum: number, i: any) => sum + (i.financial?.cbam_liability?.liabilityEUR || 0), 0);
+        const totalCBAM = Number(validatedItems.reduce((sum: number, i: any) => sum + (i.financial?.cbam_liability?.liabilityEUR || 0), 0).toFixed(2));
 
         const cfoReport = {
             shipment_health: await import('@/lib/financial-brain/strategies').then(m => m.fetchLogisticsStatus()),
@@ -232,7 +237,7 @@ export async function POST(req: NextRequest) {
             ca_recommendations: [
                 mathErrorsFound ? { type: 'Math Integrity', advice: `🚨 CRITICAL: Math Error Detected. Declared $${declaredTotal.toLocaleString()}, True Total $${calculatedSum.toLocaleString()}. System Corrected.`, savings: 0 } : null,
                 rexStatus === 'MISSING' ? { type: 'Compliance', advice: 'Missing REX Statement for Invoice > €6,000.', savings: 0 } : null,
-                logisticsStrategy.savings > 0 ? { type: 'Logistics', advice: logisticsStrategy.message, savings: logisticsStrategy.savings } : null,
+                logisticsStrategy.savings > 0 ? { type: 'Logistics', advice: logisticsStrategy.message, savings: Number(logisticsStrategy.savings.toFixed(2)) } : null,
                 incentiveEligible ? { type: 'Incentive', advice: `Claim Incentive (${(incentiveRate > 1 ? incentiveRate : incentiveRate * 100).toFixed(2)}% via Supabase)`, savings: incentiveAmt } : null,
                 dutyDrawback > 0 ? { type: 'Drawback', advice: `Claim Duty Drawback (Ref: BE-${mockImportBill.id})`, savings: dutyDrawback } : null,
                 validatedItems[0]?.financial?.erp_analysis?.recommendation ? { type: 'Strategic', advice: validatedItems[0]?.financial?.erp_analysis?.recommendation, savings: 0 } : null,
