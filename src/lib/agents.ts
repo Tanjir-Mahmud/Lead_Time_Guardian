@@ -33,23 +33,36 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
     Analyze the provided document image (Commercial Invoice / Bill of Entry).
     
     1. Flexible Extraction:
-       - Invoice #: Identify identifying string labeled as 'Invoice', 'Ref', or 'Document No'.
-       - Origin: Extract 'City, Country' from Exporter/Shipper address.
-       - Destination: Extract 'City, Country' from Consignee/Buyer address.
-       - Buyer Details: Extract Name and Address of the Buyer/Consignee.
-       - Invoice Total: Find the final value (labeled 'Total', 'FOB', 'Grand Total', or 'Net Payable').
+       - Invoice #: Identify identifying string labeled as 'Invoice', 'Ref', or 'Document No'. Key: "invoice_number"
+       - Date: Extract invoice date. Key: "invoice_date"
+       - Origin: Extract 'City, Country' from Exporter/Shipper address. Key: "origin_country"
+       - Destination: Extract 'City, Country' from Consignee/Buyer address. Key: "destination"
+       - Buyer Details: Extract Name and Address. Key: "buyer_details"
+       - Invoice Total: Find the final value (labeled 'Total', 'FOB', 'Grand Total', or 'Net Payable'). Key: "total_invoice_value" (Number)
        
     2. Line-Item Extraction:
        - Identify all rows with a Description and HS Code.
-       - Extract:
+       - Key: "line_items" (Array) containing:
          - description (string)
          - hs_code (string): If missing/illegible, set to "Pending".
          - estimated_hs_code (string): If missing, provide the most likely 6-digit code based on description.
-         - quantity (number)
-         - unit_price (number)
+         - quantity (number): CLEAN number (remove commas).
+         - unit_price (number): CLEAN number.
          - total_price (number)
 
-    Return ONLY JSON. Ensure 'line_items' is a valid array.
+    Return ONLY STRICT JSON.
+    Example:
+    {
+      "invoice_number": "IVO-99",
+      "invoice_date": "2024-01-01",
+      "origin_country": "Dhaka, Bangladesh",
+      "destination": "Berlin, Germany",
+      "buyer_details": "Buyer Corp",
+      "total_invoice_value": 15500.00,
+      "line_items": [
+        { "description": "T-Shirt", "hs_code": "6109.10", "quantity": 1000, "unit_price": 15.5, "total_price": 15500 }
+      ]
+    }
     `;
 
     // 2. HS Code Auditor Agent
