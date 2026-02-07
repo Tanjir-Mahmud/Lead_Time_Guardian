@@ -112,13 +112,15 @@ Extract invoice data, perform a Triple-Currency Audit, and generate a STRICT JSO
 🧠 STEP 3: ANALYTICS & DB INTEGRATION (STRICT)
 - DESTINATION: Extract 'Importer' country. If missing, INFER from Currency (EUR->EU, USD->USA/Global). DEFAULT to "Global" if unknown. [cite: 2026-02-08]
 - NET MARGIN: Provide as a numeric float (e.g., 2.1) representing the percentage.
+- LINE ITEMS: Extract 1-3 key line items (Description, Quantity, Unit Price, HS Code).
 
 🚛 OUTPUT FORMAT (STRICT JSON ONLY - NO MARKDOWN):
 {
   "currency_flash": { "USD": {"rate": 1.0, "value": 15000, "margin": 2.1}, "EUR": {"rate": 0.92, "value": 13800, "margin": 1.6}, "BDT": {"rate": 122.5, "value": 1837500, "margin": 0.1} },
   "thinking_process": [ {"step": "Vision Scan", "detail": "Extracted $15,000 from image."} ],
   "cfo_strategic_report": { "invoice_no": "LTG-123", "net_margin": 2.1, "advice": "Optimal" },
-  "metadata": { "destination": "Germany", "origin": "Bangladesh" },
+  "metadata": { "destination": "Germany", "origin": "Bangladesh", "invoice_number": "LTG-123", "total_invoice_value": 15000 },
+  "line_items": [ { "description": "T-Shirt", "quantity": 1000, "unit_price": 15, "hs_code": "6109.10" } ],
   "compliance_summary": { "sum_check_passed": true, "declared_total": 15000, "calculated_total": 15000 }
 }`
                     },
