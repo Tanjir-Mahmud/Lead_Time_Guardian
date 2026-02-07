@@ -4,6 +4,9 @@
 import { useState, useEffect } from 'react';
 import { Upload, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
+import { startTransition } from 'react';
+import { runAutonomousAudit } from '@/app/actions';
+
 interface DocumentAuditorProps {
     initialData?: any;
 }
@@ -12,6 +15,7 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
     const [file, setFile] = useState<File | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [result, setResult] = useState<any>(null);
+    const [isSimulated, setIsSimulated] = useState(false);
 
     // Sync when parent passes new data (e.g. from History)
     useEffect(() => {
@@ -33,20 +37,58 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
 
     const processDocument = async (file: File) => {
         setIsLoading(true);
-        const formData = new FormData();
-        formData.append('file', file);
+        setError(null);
 
         try {
-            const res = await fetch('/api/audit', {
-                method: 'POST',
-                body: formData,
-            });
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || `Audit failed: ${res.status}`);
+            if (isSimulated) {
+                // Simulation Mode: Use Server Action directly
+                const base64 = await new Promise<string>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const res = reader.result as string;
+                        resolve(res.split(',')[1]);
+                    };
+                    reader.readAsDataURL(file);
+                });
+
+                const report = await runAutonomousAudit(base64, true);
+
+                // Construct a result object compatible with the UI
+                setResult({
+                    metadata: {
+                        invoice_number: "SIMULATION-TEST",
+                        total_invoice_value: 0,
+                        origin: "Simulation",
+                        math_integrity: "SKIPPED"
+                    },
+                    strategic_audit_report: report,
+                    cfo_strategic_report: {
+                        shipment_health: { road: "CRITICAL (Sim)", sea: "N/A" },
+                        profit_protection: { ldc_graduation_risk_score: 10, revenue_risk: 0 },
+                        tax_summary: {},
+                        ca_recommendations: [],
+                        sustainability: { carbon_score: "N/A" }
+                    },
+                    line_items: [],
+                    compliance_summary: { sum_check_passed: true }
+                });
+
+            } else {
+                // Normal Mode: Use API Route
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const res = await fetch('/api/audit', {
+                    method: 'POST',
+                    body: formData,
+                });
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.error || `Audit failed: ${res.status}`);
+                }
+                const data = await res.json();
+                setResult(data);
             }
-            const data = await res.json();
-            setResult(data);
         } catch (error: any) {
             console.error(error);
             setError(error.message || "Failed to upload document");
@@ -60,6 +102,21 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
             <h2 className="text-xl font-bold text-gold mb-4 flex items-center gap-2">
                 <CheckCircle size={24} /> Document Auditor
             </h2>
+
+            {/* Simulation Toggle */}
+            <div className="mb-6 flex items-center gap-3 p-4 bg-red-900/10 rounded-lg border border-red-500/30">
+                <input
+                    type="checkbox"
+                    id="sim-toggle"
+                    checked={isSimulated}
+                    onChange={(e) => setIsSimulated(e.target.checked)}
+                    className="w-5 h-5 accent-red-600 cursor-pointer"
+                />
+                <label htmlFor="sim-toggle" className="cursor-pointer">
+                    <span className="text-red-400 font-bold block">🔥 Run Stress Test (Worst-Case Simulation)</span>
+                    <span className="text-xs text-red-300/60 block">Simulates 12h Road Delay & 3% Currency Drop</span>
+                </label>
+            </div>
 
             {!result && !isLoading && (
                 <div className="border-2 border-dashed border-gold/30 rounded-xl p-12 text-center hover:bg-gold/5 transition-colors cursor-pointer relative">

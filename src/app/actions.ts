@@ -44,13 +44,18 @@ const tools = [
 ];
 
 // --- 2. The Main Autonomous Engine ---
-export async function runAutonomousAudit(base64Image: string) {
+// --- 2. The Main Autonomous Engine ---
+export async function runAutonomousAudit(base64Image: string, isSimulated: boolean = false) {
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
         console.error("Missing OpenRouter API Key in .env");
         return "⚠️ Configuration Error: API Key missing.";
     }
+
+    const simulationPrompt = isSimulated
+        ? "⚠️ CRITICAL SIMULATION MODE: Assume a 12-hour road delay and a sudden 3% currency drop. Calculate the 'Worst-Case' margin."
+        : "NORMAL MODE: Use real-time tool data.";
 
     try {
         // STEP A: Initial Multimodal Call (Gemini analyzes the Screenshot)
@@ -68,10 +73,20 @@ export async function runAutonomousAudit(base64Image: string) {
                         role: "system",
                         content: `You are the Supreme Predictive Logistics & Financial Architect. 
                         Your task is to audit invoices for Bangladesh export. 
+                        
+                        Current Mode: ${simulationPrompt}
+
                         1. Extract HS Code, FOB, and Route. 
-                        2. Use 'getLogisticsAlerts' tool to get live context. 
+                        2. Use 'getLogisticsAlerts' tool to get live context (unless in Simulation Mode). 
                         3. Apply 11.9% LDC Risk vs 14% Benefit logic.
-                        4. Output must be concise with emojis.`
+                        4. Output must be concise with emojis.
+
+                        ⚙️ SIMULATION ENGINE (WHAT-IF):
+                        If Simulation Mode is ACTIVE:
+                        - Bypass real-time road data.
+                        - Penalty: Apply a fixed -5.00% Efficiency Penalty (representing a 12h+ bottleneck).
+                        - Currency Shock: Simulate a 3% BDT Devaluation impact on LC settlement.
+                        - Verdict: If Net Margin becomes negative, output: "🛑 FINANCIAL COLLAPSE RISK" and suggest immediate Air Freight.`
                     },
                     {
                         role: "user",
@@ -90,7 +105,9 @@ export async function runAutonomousAudit(base64Image: string) {
         const message = data.choices[0].message;
 
         // STEP B: Agentic Handshake (If Gemini asks for data)
-        if (message.tool_calls) {
+        // Only perform tool calls if NOT in simulation mode, or if Gemini insists.
+        // The prompt says "Bypass real-time road data" if simulated.
+        if (message.tool_calls && !isSimulated) {
             const toolCall = message.tool_calls[0];
 
             // Execute your real-time logistics logic
