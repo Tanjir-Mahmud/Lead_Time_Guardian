@@ -1,4 +1,5 @@
 import React from 'react';
+import { Download } from 'lucide-react';
 
 export interface AuditLogItem {
     id: string;
@@ -12,9 +13,10 @@ export interface AuditLogItem {
 interface AuditTableProps {
     logs: AuditLogItem[];
     onRowClick?: (id: string) => void;
+    onDownload?: (id: string, e: React.MouseEvent) => void;
 }
 
-export const AuditTable = ({ logs, onRowClick }: AuditTableProps) => {
+export const AuditTable = ({ logs, onRowClick, onDownload }: AuditTableProps) => {
     return (
         <div className="overflow-x-auto rounded-xl border border-white/10 bg-navy/30 shadow-sm">
             <table className="min-w-full divide-y divide-white/10 text-left text-sm">
@@ -25,6 +27,7 @@ export const AuditTable = ({ logs, onRowClick }: AuditTableProps) => {
                         <th className="px-6 py-3 uppercase tracking-wider text-xs">2026 Risk (11.9%)</th>
                         <th className="px-6 py-3 uppercase tracking-wider text-xs">Net Margin</th>
                         <th className="px-6 py-3 uppercase tracking-wider text-xs">Status</th>
+                        <th className="px-6 py-3 uppercase tracking-wider text-xs text-right">Action</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 bg-transparent text-gray-300">
@@ -58,11 +61,23 @@ export const AuditTable = ({ logs, onRowClick }: AuditTableProps) => {
                                         {log.net_margin >= 2.10 ? '✅ HEDGED' : '⚠️ AT RISK'}
                                     </span>
                                 </td>
+                                <td className="px-6 py-4 text-right">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDownload && onDownload(log.id, e);
+                                        }}
+                                        className="p-2 hover:bg-white/10 rounded-full text-blue-400 hover:text-blue-300 transition-colors"
+                                        title="Download PDF Report"
+                                    >
+                                        <Download size={16} />
+                                    </button>
+                                </td>
                             </tr>
                         ))
                     ) : (
                         <tr>
-                            <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                            <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                                 No audit logs found.
                             </td>
                         </tr>

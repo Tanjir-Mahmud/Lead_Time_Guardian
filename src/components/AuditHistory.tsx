@@ -154,6 +154,10 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
                         const item = history.find(h => h.id === id);
                         if (item) handleRowClick(item);
                     }}
+                    onDownload={(id) => {
+                        const item = history.find(h => h.id === id);
+                        if (item) handleDownload(item);
+                    }}
                 />
             )}
         </div>
