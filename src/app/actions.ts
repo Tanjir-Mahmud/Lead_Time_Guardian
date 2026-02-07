@@ -12,6 +12,19 @@ export interface LogisticsAlert {
     timestamp: string;
 }
 
+
+// --- Helper Functions ---
+function parseNumericValue(value: any): number {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+        // Remove commas, currency symbols, and whitespace
+        const clean = value.replace(/[$,€£\s]/g, '');
+        const num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+    }
+    return 0;
+}
+
 // --- Exchange Rate Logic ---
 export async function getCurrencyRates(): Promise<string> {
     const apiKey = "4f87eebeb49d0d0fa21bbfd2";
@@ -97,7 +110,7 @@ Extract invoice data, perform a Triple-Currency Audit, and generate a STRICT JSO
     * BDT: { rate: [Rate], value: [FOB*Rate], margin: 0.1 }
 
 🧠 STEP 3: ANALYTICS & DB INTEGRATION (STRICT)
-- DESTINATION: Extract the country name from the 'Importer' address (e.g., "Germany", "Spain"). NEVER use "Unknown" if an address is visible. [cite: 2026-02-05, 2026-02-08]
+- DESTINATION: Extract 'Importer' country. If missing, INFER from Currency (EUR->EU, USD->USA/Global). DEFAULT to "Global" if unknown. [cite: 2026-02-08]
 - NET MARGIN: Provide as a numeric float (e.g., 2.1) representing the percentage.
 
 🚛 OUTPUT FORMAT (STRICT JSON ONLY - NO MARKDOWN):
@@ -205,11 +218,13 @@ Extract invoice data, perform a Triple-Currency Audit, and generate a STRICT JSO
                             await supabase.from('shipments').insert([{
                                 user_id: user.id,
                                 invoice_no: auditResult.cfo_strategic_report?.invoice_no || 'TBD',
-                                destination: auditResult.metadata?.destination || 'Global',
-                                // নিশ্চিত করুন ভ্যালুটি পিওর নাম্বার হিসেবে যাচ্ছে
-                                value: Number(auditResult.compliance_summary?.calculated_total) || 0,
+                                destination: (auditResult.metadata?.destination && auditResult.metadata.destination !== 'Unknown')
+                                    ? auditResult.metadata.destination
+                                    : 'Global',
+                                // নিশ্চিত করুন ভ্যালুটি পিওর নাম্বার হিসেবে যাচ্ছে (কমা/সিম্বল রিমুভ করে)
+                                value: parseNumericValue(auditResult.compliance_summary?.calculated_total),
                                 status: 'Audited',
-                                lead_time_impact: Number(auditResult.cfo_strategic_report?.net_margin) || 0
+                                lead_time_impact: parseNumericValue(auditResult.cfo_strategic_report?.net_margin)
                             }]);
 
                             // 2. Save Audit Log
