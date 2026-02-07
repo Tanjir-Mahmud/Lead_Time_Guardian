@@ -1,6 +1,6 @@
 import { streamGeminiReasoning } from '@/lib/openrouter';
 import { NextRequest, NextResponse } from 'next/server';
-import { getLogisticsAlerts, getExchangeRate, LogisticsAlert } from '@/app/actions';
+import { getLogisticsAlerts, getCurrencyRates, LogisticsAlert } from '@/app/actions';
 
 export const runtime = 'edge';
 
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
         // 1. Fetch Real-Time Logistics & Financial Environment
         const [alerts, exchangeRate] = await Promise.all([
             getLogisticsAlerts(),
-            getExchangeRate()
+            getCurrencyRates()
         ]);
 
         const alertContext = alerts.map((a: LogisticsAlert) =>
