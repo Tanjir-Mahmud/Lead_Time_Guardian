@@ -78,40 +78,35 @@ export async function runAutonomousAudit(base64Image: string) {
                     {
                         role: "system",
                         content: `📍 IDENTITY: 
-You are the "Lead-Time Guardian" Supreme Auditor. You specialize in Multimodal Trade Finance and Compliance. You have absolute authority over Global Trade Math.
+You are the "Lead-Time Guardian" Supreme Auditor. You specialize in Multimodal Trade Finance. Your output MUST be 100% database-compatible.
 
 🎯 MISSION: 
-Audit the provided invoice, perform Triple-Currency analysis, and generate a STRICT JSON output for database synchronization.
+Extract invoice data, perform a Triple-Currency Audit, and generate a STRICT JSON output.
 
-🧠 STEP 1: VISION-DRIVEN MATH RECONCILIATION
-- Scan the image for 'Total FOB', 'Quantity', and 'Unit Price'.
+🧠 STEP 1: VISION & NUMERIC PRECISION
+- Locate 'Total FOB', 'Quantity', and 'Unit Price'. 
 - MANDATORY: You MUST calculate (Quantity * Unit Price). 
-- SET 'calculated_total' to the result of this math. Do NOT return 0. [cite: 2026-02-08]
-- Compare with the 'declared_total' from the invoice image. 
-- SET 'sum_check_passed' to true only if they match.
+- SET 'calculated_total' as a PURE NUMBER only (e.g., 15000). Remove any "$", "€", or ",". [cite: 2026-02-08]
+- SET 'sum_check_passed' to true only if (Quantity * Unit Price) matches the image's Total FOB.
 
 🧠 STEP 2: MULTI-CURRENCY FLASH AUDIT
-- Fetch data using 'getCurrencyRates'. [cite: 2026-02-05]
-- Generate a 'currency_flash' JSON object:
-    * USD: { rate: 1.0, value: [FOB], margin: [Net %], recommendation: "Optimal Settlement" }
-    * EUR: { rate: [Live EUR], value: [FOB * EUR_Rate], margin: [Net % - 0.5% Buffer], recommendation: "Stable" }
-    * BDT: { rate: [Live BDT], value: [FOB * BDT_Rate], margin: [Net % - 2.0% Buffer], recommendation: "Risk of Inflation" } [cite: 2026-02-05]
+- Use 'getCurrencyRates' for live data. [cite: 2026-02-05]
+- Return 'currency_flash' with numeric values:
+    * USD: { rate: 1.0, value: [FOB], margin: 2.1 }
+    * EUR: { rate: [Rate], value: [FOB*Rate], margin: 1.6 }
+    * BDT: { rate: [Rate], value: [FOB*Rate], margin: 0.1 }
 
-🧠 STEP 3: TRADE POLICY & COMPLIANCE (2026 READY)
-- Detect Importer Country. If EU/UK, apply 11.9% MFN Duty (LDC Graduation 2026). [cite: 2026-01-29, 2026-02-08]
-- Check for REX Statement. If Missing and Value > €6,000, flag as "NON-COMPLIANT". [cite: 2026-02-08]
+🧠 STEP 3: ANALYTICS & DB INTEGRATION (STRICT)
+- DESTINATION: Extract the country name from the 'Importer' address (e.g., "Germany", "Spain"). NEVER use "Unknown" if an address is visible. [cite: 2026-02-05, 2026-02-08]
+- NET MARGIN: Provide as a numeric float (e.g., 2.1) representing the percentage.
 
-🧠 STEP 4: ANALYTICS SYNC DATA
-- Identify 'destination' and 'origin' from the image text. Avoid using "Unknown". [cite: 2026-02-05]
-- Set 'lead_time_impact' as a numeric percentage based on real-time road congestion levels. [cite: 2026-02-05]
-
-🚛 OUTPUT FORMAT (STRICT JSON ONLY - NO PRE-TEXT OR POST-TEXT):
+🚛 OUTPUT FORMAT (STRICT JSON ONLY - NO MARKDOWN):
 {
-  "currency_flash": { "USD": {}, "EUR": {}, "BDT": {} },
-  "thinking_process": [ {"step": "...", "detail": "..."} ],
-  "cfo_strategic_report": { "invoice_no": "...", "net_margin": "...", "advice": "..." },
-  "metadata": { "destination": "...", "origin": "..." },
-  "compliance_summary": { "sum_check_passed": true, "declared_total": 0, "calculated_total": 0 }
+  "currency_flash": { "USD": {"rate": 1.0, "value": 15000, "margin": 2.1}, "EUR": {"rate": 0.92, "value": 13800, "margin": 1.6}, "BDT": {"rate": 122.5, "value": 1837500, "margin": 0.1} },
+  "thinking_process": [ {"step": "Vision Scan", "detail": "Extracted $15,000 from image."} ],
+  "cfo_strategic_report": { "invoice_no": "LTG-123", "net_margin": 2.1, "advice": "Optimal" },
+  "metadata": { "destination": "Germany", "origin": "Bangladesh" },
+  "compliance_summary": { "sum_check_passed": true, "declared_total": 15000, "calculated_total": 15000 }
 }`
                     },
                     {
@@ -209,13 +204,12 @@ Audit the provided invoice, perform Triple-Currency analysis, and generate a STR
                             // 1. Save Shipment Data
                             await supabase.from('shipments').insert([{
                                 user_id: user.id,
-                                invoice_no: auditResult.cfo_strategic_report?.invoice_no || 'UNKNOWN',
-                                destination: auditResult.metadata?.destination || 'Unknown',
-                                value: auditResult.compliance_summary?.calculated_total || 0,
+                                invoice_no: auditResult.cfo_strategic_report?.invoice_no || 'TBD',
+                                destination: auditResult.metadata?.destination || 'Global',
+                                // নিশ্চিত করুন ভ্যালুটি পিওর নাম্বার হিসেবে যাচ্ছে
+                                value: Number(auditResult.compliance_summary?.calculated_total) || 0,
                                 status: 'Audited',
-                                lead_time_impact: typeof auditResult.cfo_strategic_report?.net_margin === 'string'
-                                    ? parseFloat(auditResult.cfo_strategic_report.net_margin)
-                                    : (auditResult.cfo_strategic_report?.net_margin || 0)
+                                lead_time_impact: Number(auditResult.cfo_strategic_report?.net_margin) || 0
                             }]);
 
                             // 2. Save Audit Log
