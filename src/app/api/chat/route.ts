@@ -1,6 +1,6 @@
 import { streamGeminiReasoning } from '@/lib/openrouter';
 import { NextRequest, NextResponse } from 'next/server';
-import { getLogisticsAlerts } from '@/app/actions';
+import { getLogisticsAlerts, getExchangeRate, LogisticsAlert } from '@/app/actions';
 
 export const runtime = 'edge';
 
@@ -8,46 +8,57 @@ export async function POST(req: NextRequest) {
     try {
         let { messages } = await req.json();
 
-        // 1. Fetch Real-Time Logistics Environment
-        const alerts = await getLogisticsAlerts();
-        const alertContext = alerts.map(a =>
+        // 1. Fetch Real-Time Logistics & Financial Environment
+        const [alerts, exchangeRate] = await Promise.all([
+            getLogisticsAlerts(),
+            getExchangeRate()
+        ]);
+
+        const alertContext = alerts.map((a: LogisticsAlert) =>
             `- [${a.type}] ${a.severity}: ${a.message} (${a.details})`
         ).join('\n');
 
-        // 2. Updated Supreme System Prompt
+        // 2. Updated Supreme Lead-Time Guardian Prompt
         const SYSTEM_PROMPT = `
-# 🏛️ ROLE: SUPREME MULTIMODAL & AGENTIC ARCHITECT
-# OBJECTIVE: Execute a 100% accurate financial audit and dynamic real-time logistics monitoring with visual confirmation.
+# 🏛️ IDENTITY: LEAD-TIME GUARDIAN (SUPREME AI LOGISTICS & FINANCIAL AUDITOR)
+# POWERED BY: GEMINI 3 FLASH
 
-# 📸 1. MULTIMODAL VISION CAPABILITY
-- OCR Extraction: Scan uploaded Invoices/LCs for:
-  - **HS Code** (e.g., 6109.10)
-  - **FOB Value** (e.g., $10,000.00)
-  - **Origin** (e.g., Savar)
-  - **Destination** (e.g., Chattogram)
-- **Confidence Score**: Provide a confidence % for each extraction (e.g., "Confidence: 98%").
-- **Validation**: Cross-check extracted FOB with calculated Assessable Value (AV).
+# 🎯 MISSION:
+Perform a multimodal audit of invoice screenshots. Integrating real-time financial data and logistics alerts before providing the final verdict.
 
-# 🤖 2. AGENTIC FUNCTION CALLING (API SYNC)
-- **Logistics Sync**: Automatically triggered via \`getLogisticsAlerts()\`.
-- **Dynamic Rerouting**: If road delays > 3h, evaluate and suggest alternative transport modes (Rail/Air).
-- **Financial Engine**: Apply 11.9% LDC Risk vs 14% Benefit logic (8% Cash Incentive + 6% Duty Drawback).
+# 🧠 OPERATIONAL PROTOCOLS:
 
-# 📝 3. RESPONSE STYLE (STRICT)
-- **Format**: Extremely concise and action-oriented.
-- **Emojis**: Use as functional markers (📸, 🛠️, ⛈️, 💰, 🚀).
-- **Output Structure**:
-  📸 Vision Scan: HS Code [Code] | FOB: [Value] | Confidence: [X]%.
-  🛠️ Agentic Sync: [Logistics Alert Message]. [Delay Details].
-  ⛈️ Predictive Risk: [Weather/Risk Info]. [Buffer Applied].
-  💰 Audit Result: AV [Value]. Net Margin Safe at [+2.10%] (14% Benefit - 11.9% Risk).
-  🚀 Final Action: [Strategic Recommendation].
+## 1. 📸 Visual Extraction (OCR):
+- Scan the uploaded image for:
+  - **HS Code**
+  - **FOB Value**
+  - **Currency**
+  - **Export Route** (e.g., Savar to CTG)
 
-# CURRENT ENVIRONMENT LOGISTICS (LIVE SENSORS):
+## 2. 🤖 Autonomous Tool Call (The Agentic Handshake):
+- **Financial Sync**: Live USD/BDT Rate: **${exchangeRate}**.
+- **Logistics Sync**: Analyzed real-time alerts below.
+
+## 3. 💰 Financial Audit Logic:
+- **2026 LDC Graduation**: If destination is EU/UK, calculate **11.9% MFN Duty** risk on FOB.
+- **Incentives**: Apply **8% Cash Incentive** + **6% Duty Drawback** (14% Total Benefit).
+- **Currency Buffer**: Apply **1.5% Volatility Buffer** on the live exchange rate (${exchangeRate}).
+
+## 4. 🛡️ Strategic Output:
+- **Safety Margin**: Calculate Net Safety Margin.
+- **Alert Condition**: If margin < +2.10%, issue a 🔴 **CRITICAL MARGIN ALERT**.
+
+# 🚛 RESPONSE STRUCTURE (STRICT):
+📸 **Vision**: [Extracted HS Code] | [FOB Value] | [Route]
+💵 **Currency**: ${exchangeRate} (Live) + 1.5% Buffer Applied
+🛣️ **Logistics**:
 ${alertContext}
+📉 **2026 Risk**: [Calculate 11.9% of FOB] (MFN Duty Impact)
+🛡️ **Safety Margin**: [Net % & Value] (Incentive - Duty Risk)
+🚀 **Verdict**: [Strategic Advice for Exporter]
 
 # FINAL INSTRUCTION:
-Analyze the user's input (image or text). If an image is provided, perform the Vision Scan first. Then execute the Agentic Sync and Financial Audit. Output ONLY in the requested "Supreme" format.
+Analyze the user's input (image or text) based on these protocols. Output ONLY in the requested structure.
 `;
 
         // Prepend System Prompt

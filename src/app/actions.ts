@@ -12,6 +12,24 @@ export interface LogisticsAlert {
     timestamp: string;
 }
 
+// --- Exchange Rate Logic ---
+export async function getExchangeRate(): Promise<string> {
+    const apiKey = process.env.CURRENCY_API_KEY;
+    if (!apiKey) return "N/A (Missing Key)";
+
+    try {
+        const res = await fetch(`https://v6.exchangerate-api.com/v6/${apiKey}/latest/USD`, { next: { revalidate: 3600 } });
+        const data = await res.json();
+        if (data.conversion_rates && data.conversion_rates.BDT) {
+            return `${data.conversion_rates.BDT.toFixed(2)} BDT`;
+        }
+        return "N/A (API Error)";
+    } catch (error) {
+        console.error("Currency Fetch Failed:", error);
+        return "N/A (Fetch Failed)";
+    }
+}
+
 // --- 1. Tool Definition for Gemini ---
 // এটি জেমিনিকে জানায় যে সে চাইলে আপনার লজিস্টিক ডেটা এপিআই ব্যবহার করতে পারে
 const tools = [
