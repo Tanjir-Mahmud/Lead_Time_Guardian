@@ -77,52 +77,42 @@ export async function runAutonomousAudit(base64Image: string) {
                 messages: [
                     {
                         role: "system",
-                        content: `🏛️ GEMINI 3 ULTIMATE CoT MASTER PROMPT & MULTI-CURRENCY FLASH AUDIT
-📍 IDENTITY: You are the Lead-Time Guardian, an AI Strategist for Global Trade. You specialize in Explainable AI (XAI) and Cross-Border Currency Risk Mitigation. [cite: 2026-02-05]
+                        content: `📍 IDENTITY: 
+You are the "Lead-Time Guardian" Supreme Auditor. You specialize in Multimodal Trade Finance and Compliance. You have absolute authority over Global Trade Math.
 
 🎯 MISSION: 
-1. Audit the invoice with high precision and provide a "Chain-of-Thought" (CoT) log.
-2. Perform a "Flash Audit" of the FOB value against three global currencies (USD, EUR, BDT) to identify the "Highest Safety Margin."
+Audit the provided invoice, perform Triple-Currency analysis, and generate a STRICT JSON output for database synchronization.
 
-🧠 REASONING & EXECUTION STEPS (THE CHAIN):
-Step 1: Multimodal Vision Scan
-Extract: Invoice #, FOB Value, HS Code, and Destination Country.
-CoT Detail: "Vision engine locked. HS Code detected. Destination identified."
+🧠 STEP 1: VISION-DRIVEN MATH RECONCILIATION
+- Scan the image for 'Total FOB', 'Quantity', and 'Unit Price'.
+- MANDATORY: You MUST calculate (Quantity * Unit Price). 
+- SET 'calculated_total' to the result of this math. Do NOT return 0. [cite: 2026-02-08]
+- Compare with the 'declared_total' from the invoice image. 
+- SET 'sum_check_passed' to true only if they match.
 
-Step 2: Real-time Financial Handshake & Multi-Currency Sync
-Call getCurrencyRates using API Key: 4f87eebeb49d0d0fa21bbfd2.
-Fetch USD/BDT and USD/EUR rates immediately.
-CoT Detail: "Live exchange rates synced for USD, EUR, and BDT."
+🧠 STEP 2: MULTI-CURRENCY FLASH AUDIT
+- Fetch data using 'getCurrencyRates'. [cite: 2026-02-05]
+- Generate a 'currency_flash' JSON object:
+    * USD: { rate: 1.0, value: [FOB], margin: [Net %], recommendation: "Optimal Settlement" }
+    * EUR: { rate: [Live EUR], value: [FOB * EUR_Rate], margin: [Net % - 0.5% Buffer], recommendation: "Stable" }
+    * BDT: { rate: [Live BDT], value: [FOB * BDT_Rate], margin: [Net % - 2.0% Buffer], recommendation: "Risk of Inflation" } [cite: 2026-02-05]
 
-Step 3: Multi-Currency Flash Audit (Triangulation & Risk Buffer)
-- Base Currency: USD (1.5% Volatility Buffer).
-- Alternate 1: EUR (2.0% Volatility Buffer due to Eurozone fluctuations).
-- Alternate 2: BDT (3.5% Buffer representing local inflation/liquidity risk).
-- For each currency, calculate: [FOB + 14% Benefits] - [11.9% LDC Duty Risk] - [Currency Buffer].
-- Identify the "Optimal Settlement Currency."
+🧠 STEP 3: TRADE POLICY & COMPLIANCE (2026 READY)
+- Detect Importer Country. If EU/UK, apply 11.9% MFN Duty (LDC Graduation 2026). [cite: 2026-01-29, 2026-02-08]
+- Check for REX Statement. If Missing and Value > €6,000, flag as "NON-COMPLIANT". [cite: 2026-02-08]
 
-Step 4: Predictive Logistics Sync
-Call getLogisticsAlerts. Check N1 Highway traffic and 72h weather.
-CoT Detail: "Analyzing Barikoi traffic data and Weather."
+🧠 STEP 4: ANALYTICS SYNC DATA
+- Identify 'destination' and 'origin' from the image text. Avoid using "Unknown". [cite: 2026-02-05]
+- Set 'lead_time_impact' as a numeric percentage based on real-time road congestion levels. [cite: 2026-02-05]
 
-Step 5: LDC 2026 Policy Audit & Safety Margin Synthesis
-Check EU/UK destination for 11.9% duty risk.
-Calculate Net Margin based on the Optimal Settlement Currency.
-CoT Detail: "Synthesis complete. Final safety margin calculated."
-
-🚛 OUTPUT FORMAT (STRICT):
-Vision Results: [Populate Table]
-
-currency_flash: [
-  { "code": "USD", "rate": "1.000", "fob_equivalent": "...", "net_margin": "...", "status": "⭐ Recommended" },
-  { "code": "EUR", "rate": "...", "fob_equivalent": "...", "net_margin": "...", "status": "Neutral" },
-  { "code": "BDT", "rate": "...", "fob_equivalent": "...", "net_margin": "...", "status": "🔴 High Risk" }
-]
-
-Chain-of-Thought Log: * Provide a JSON array thinking_process with fields: step, timestamp, and insight.
-
-Verdict: [Emoji-based verdict]
-Include a sentence: "Switching to [Currency] could save [Amount] in potential volatility loss."`
+🚛 OUTPUT FORMAT (STRICT JSON ONLY - NO PRE-TEXT OR POST-TEXT):
+{
+  "currency_flash": { "USD": {}, "EUR": {}, "BDT": {} },
+  "thinking_process": [ {"step": "...", "detail": "..."} ],
+  "cfo_strategic_report": { "invoice_no": "...", "net_margin": "...", "advice": "..." },
+  "metadata": { "destination": "...", "origin": "..." },
+  "compliance_summary": { "sum_check_passed": true, "declared_total": 0, "calculated_total": 0 }
+}`
                     },
                     {
                         role: "user",
@@ -201,6 +191,47 @@ Include a sentence: "Switching to [Currency] could save [Amount] in potential vo
             });
 
             const finalData = await finalResponse.json();
+
+            // --- DATABASE SYNC PROTOCOL [2026-02-05] ---
+            try {
+                const content = finalData.choices[0].message.content;
+                // Attempt to parse JSON to ensure it's valid before saving
+                // We might need to extract JSON if it's wrapped in markdown code blocks
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const auditResult = JSON.parse(jsonMatch[0]);
+
+                    if (auditResult.compliance_summary?.sum_check_passed) {
+                        const supabase = createClient();
+                        const { data: { user } } = await supabase.auth.getUser();
+
+                        if (user) {
+                            // 1. Save Shipment Data
+                            await supabase.from('shipments').insert([{
+                                user_id: user.id,
+                                invoice_no: auditResult.cfo_strategic_report?.invoice_no || 'UNKNOWN',
+                                destination: auditResult.metadata?.destination || 'Unknown',
+                                value: auditResult.compliance_summary?.calculated_total || 0,
+                                status: 'Audited',
+                                lead_time_impact: typeof auditResult.cfo_strategic_report?.net_margin === 'string'
+                                    ? parseFloat(auditResult.cfo_strategic_report.net_margin)
+                                    : (auditResult.cfo_strategic_report?.net_margin || 0)
+                            }]);
+
+                            // 2. Save Audit Log
+                            await saveAuditLog({
+                                action: 'INVOICE_AUDIT',
+                                status: 'SUCCESS',
+                                details: auditResult.cfo_strategic_report?.advice || 'Audit completed successfully.'
+                            });
+                        }
+                    }
+                }
+            } catch (dbError) {
+                console.error("Database Sync Failed:", dbError);
+                // We don't block the return of the audit result, just log the error
+            }
+
             return finalData.choices[0].message.content;
         }
 
