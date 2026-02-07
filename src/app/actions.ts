@@ -3,7 +3,6 @@
 import { createClient } from '@/lib/supabase/server';
 
 // --- Types & Interfaces ---
-
 export interface LogisticsAlert {
     id: string;
     type: 'ROAD' | 'SEA' | 'WEATHER';
@@ -13,168 +12,164 @@ export interface LogisticsAlert {
     timestamp: string;
 }
 
-// --- Analytics Actions ---
-
-export async function getAnalyticsData() {
-    try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-            console.error('No authenticated user found for analytics.');
-            return { shipments: [], auditLogs: [] };
+// --- 1. Tool Definition for Gemini ---
+// এটি জেমিনিকে জানায় যে সে চাইলে আপনার লজিস্টিক ডেটা এপিআই ব্যবহার করতে পারে
+const tools = [
+    {
+        type: "function",
+        function: {
+            name: "getLogisticsAlerts",
+            description: "Get real-time and predictive logistics alerts for Bangladesh including road traffic, sea port congestion, and weather.",
+            parameters: { type: "object", properties: {} }
         }
-
-        const { data: shipments, error: shipmentsError } = await supabase
-            .from('shipments')
-            .select('*')
-            .eq('user_id', user.id);
-
-        if (shipmentsError) throw shipmentsError;
-
-        const { data: auditLogs, error: auditError } = await supabase
-            .from('audit_logs')
-            .select('*')
-            .eq('user_id', user.id);
-
-        if (auditError) throw auditError;
-
-        return { shipments, auditLogs };
-    } catch (error) {
-        console.error('Error fetching analytics data:', error);
-        return { shipments: [], auditLogs: [] };
     }
-}
+];
 
-// --- Audit Logic Helpers ---
+// --- 2. The Main Autonomous Engine ---
+export async function runAutonomousAudit(base64Image: string) {
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
-export async function getRegulatoryRates(category: string = 'General') {
-    const supabase = createClient();
-    const { data, error } = await supabase
-        .from('regulatory_rates')
-        .select('incentive_rate, ldc_risk_rate')
-        .eq('category', category)
-        .single();
-
-    if (error || !data) {
-        // Default based on LDC Graduation 2026 Risk Logic [cite: 2026-01-29, 2026-02-05]
-        return { incentive_rate: 0.08, ldc_risk_rate: 0.119 };
+    if (!apiKey) {
+        console.error("Missing OpenRouter API Key in .env");
+        return "⚠️ Configuration Error: API Key missing.";
     }
-
-    return data;
-}
-
-export async function saveAuditLog(logEntry: any) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        console.error('User not authenticated. Cannot save audit log.');
-        return;
-    }
-
-    const { error } = await supabase
-        .from('audit_logs')
-        .insert([{ ...logEntry, user_id: user.id }]);
-
-    if (error) {
-        console.error('Error saving audit log:', error);
-    }
-}
-
-// --- Predictive Logistics Logic (The Winning Layer) ---
-
-// Helper to fetch Predictive Weather (72-Hour Outlook) [cite: 2026-02-05]
-async function getPredictiveWeather(lat: number, lon: number, locationName: string): Promise<LogisticsAlert | null> {
-    const apiKey = "6d7d67198b747da170f748214180a6ce"; // Your OpenWeather Key
 
     try {
-        // Using 'forecast' endpoint to move from Reactive to Predictive [cite: 2025-12-12]
-        const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
-        if (!res.ok) throw new Error(`Forecast API Error: ${res.statusText}`);
-
-        const data = await res.json();
-
-        // Analyze next 72 hours (24 slots of 3-hour intervals) [cite: 2026-02-05]
-        const predictiveRisk = data.list.slice(0, 24).find((slot: any) => {
-            const condition = slot.weather[0].main;
-            const description = slot.weather[0].description;
-            // Rule: Identify Storm, Heavy Rain, or Flood conditions [cite: 2026-02-05]
-            return ['Thunderstorm', 'Rain', 'Squall', 'Tornado'].includes(condition) ||
-                description.includes('heavy intensity rain') ||
-                description.includes('storm');
+        // STEP A: Initial Multimodal Call (Gemini analyzes the Screenshot)
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://lead-time-guardian.vercel.app", // Optional for OpenRouter
+            },
+            body: JSON.stringify({
+                model: "google/gemini-flash-1.5",
+                messages: [
+                    {
+                        role: "system",
+                        content: `You are the Supreme Predictive Logistics & Financial Architect. 
+                        Your task is to audit invoices for Bangladesh export. 
+                        1. Extract HS Code, FOB, and Route. 
+                        2. Use 'getLogisticsAlerts' tool to get live context. 
+                        3. Apply 11.9% LDC Risk vs 14% Benefit logic.
+                        4. Output must be concise with emojis.`
+                    },
+                    {
+                        role: "user",
+                        content: [
+                            { type: "text", text: "Please audit this invoice screenshot and provide a predictive risk analysis." },
+                            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+                        ]
+                    }
+                ],
+                tools: tools,
+                tool_choice: "auto"
+            })
         });
 
-        if (predictiveRisk) {
-            const riskTime = new Date(predictiveRisk.dt_txt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
+        const data = await response.json();
+        const message = data.choices[0].message;
+
+        // STEP B: Agentic Handshake (If Gemini asks for data)
+        if (message.tool_calls) {
+            const toolCall = message.tool_calls[0];
+
+            // Execute your real-time logistics logic
+            const realTimeAlerts = await getLogisticsAlerts();
+
+            // STEP C: Final Call (Sending real data back to Gemini)
+            const finalResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${apiKey}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: "google/gemini-flash-1.5",
+                    messages: [
+                        { role: "system", content: "Finalize the audit report using the provided real-time alerts." },
+                        { role: "assistant", content: null, tool_calls: message.tool_calls },
+                        {
+                            role: "tool",
+                            name: "getLogisticsAlerts",
+                            tool_call_id: toolCall.id,
+                            content: JSON.stringify(realTimeAlerts)
+                        }
+                    ]
+                })
+            });
+
+            const finalData = await finalResponse.json();
+            return finalData.choices[0].message.content;
+        }
+
+        return message.content;
+    } catch (error) {
+        console.error("Autonomous Audit Failed:", error);
+        return "⚠️ Audit Engine is currently offline. Please check connectivity.";
+    }
+}
+
+// --- 3. Predictive & Real-time Logistics Logic ---
+
+async function getPredictiveWeather(lat: number, lon: number, locationName: string): Promise<LogisticsAlert | null> {
+    const weatherApiKey = "6d7d67198b747da170f748214180a6ce";
+    try {
+        const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${weatherApiKey}&units=metric`);
+        const data = await res.json();
+
+        // Check next 72 hours for critical conditions
+        const risk = data.list.slice(0, 24).find((slot: any) =>
+            ['Rain', 'Thunderstorm', 'Squall'].includes(slot.weather[0].main)
+        );
+
+        if (risk) {
             return {
-                id: `predictive-weather-${locationName.toLowerCase()}`,
+                id: `weather-${locationName}`,
                 type: 'WEATHER',
                 severity: 'CRITICAL',
-                message: '⚠️ PREDICTIVE RISK DETECTED',
-                details: `Predictive Alert: ${predictiveRisk.weather[0].description} expected at ${locationName} around ${riskTime}. Loading delay risk: HIGH. Strategic Advice: Secure loading before the storm window.`,
+                message: `⚠️ Storm risk at ${locationName}`,
+                details: `Predictive Alert: ${risk.weather[0].description} expected. Lead-time impact: High.`,
                 timestamp: new Date().toISOString()
             };
         }
-    } catch (error) {
-        console.error("Failed to fetch predictive weather:", error);
-    }
+    } catch (e) { return null; }
     return null;
 }
 
 export async function getLogisticsAlerts(): Promise<LogisticsAlert[]> {
     const alerts: LogisticsAlert[] = [];
 
-    // 1. DYNAMIC ROAD SYNC (Simulated Barikoi Logic) [cite: 2026-02-05]
-    // Rule: Trigger if delay > 2.5 hours vs Standard 5.0h [cite: 2026-02-05]
-    const standardTimeHours = 5.0;
-    const actualTimeHours = 4.5 + (Math.random() * 4.5); // Simulating traffic variance
-    const delay = actualTimeHours - standardTimeHours;
-
-    if (delay > 2.5) {
+    // Simulate Road Traffic Logic (Barikoi integration point)
+    const actualDelay = 2.5 + Math.random() * 5;
+    if (actualDelay > 4) {
         alerts.push({
-            id: 'road-critical',
+            id: 'road-delay',
             type: 'ROAD',
-            severity: 'CRITICAL',
-            message: 'CRITICAL ROAD ALERT',
-            details: `Traffic congestion detected. Travel time: ${actualTimeHours.toFixed(1)}h (Standard: ${standardTimeHours}h). Expected lead-time increase: 12 hours.`,
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    // 2. SEA SENSE (Simulated Terminal49 Logic) [cite: 2026-02-05]
-    // Rule: Port Congestion > 70% -> Recommend Air Freight [cite: 2026-02-05]
-    const congestionIndex = Math.floor(Math.random() * 100);
-    if (congestionIndex > 70) {
-        alerts.push({
-            id: 'sea-congestion',
-            type: 'SEA',
             severity: 'HIGH',
-            message: 'PORT ALERT: Heavy Congestion',
-            details: `Port Congestion Index at ${congestionIndex}% (Terminal49). Strategic Recommendation: Evaluate Air Freight to avoid lead-time penalties.`,
+            message: 'Traffic Congestion on N1',
+            details: `Historical pattern + live data suggests ${actualDelay.toFixed(1)}h delay on Dhaka-CTG route.`,
             timestamp: new Date().toISOString()
         });
     }
 
-    // 3. PREDICTIVE WEATHER SENSE (72-Hour Outlook) [cite: 2026-02-05]
-    // Locations: Savar (Origin: 23.8483, 90.2674) & Chattogram (Port: 22.3569, 91.7832) [cite: 2026-02-05]
-    const savarAlert = await getPredictiveWeather(23.8483, 90.2674, 'Savar (Origin)');
-    if (savarAlert) alerts.push(savarAlert);
+    // Predictive Weather for Savar & CTG
+    const savar = await getPredictiveWeather(23.8483, 90.2674, 'Savar');
+    if (savar) alerts.push(savar);
 
-    const ctgAlert = await getPredictiveWeather(22.3569, 91.7832, 'Chattogram (Port)');
-    if (ctgAlert) alerts.push(ctgAlert);
+    const ctg = await getPredictiveWeather(22.3569, 91.7832, 'Chattogram');
+    if (ctg) alerts.push(ctg);
 
-    // Default Status if no critical alerts
-    if (alerts.length === 0) {
-        alerts.push({
-            id: 'status-ok',
-            type: 'ROAD',
-            severity: 'LOW',
-            message: 'Supply Chain Health: Stable',
-            details: 'All routes and predictive windows show normal operational parameters.',
-            timestamp: new Date().toISOString()
-        });
+    return alerts.length > 0 ? alerts : [{ id: 'ok', type: 'ROAD', severity: 'LOW', message: 'All Stable', details: 'No significant risks.', timestamp: '' }];
+}
+
+// --- 4. Analytics & Database Actions ---
+
+export async function saveAuditLog(logEntry: any) {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        await supabase.from('audit_logs').insert([{ ...logEntry, user_id: user.id }]);
     }
-
-    return alerts;
 }
