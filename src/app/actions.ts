@@ -191,3 +191,22 @@ export async function saveAuditLog(logEntry: any) {
         await supabase.from('audit_logs').insert([{ ...logEntry, user_id: user.id }]);
     }
 }
+
+export async function getAnalyticsData() {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return { shipments: [], auditLogs: [] };
+    }
+
+    const [shipmentsRes, auditsRes] = await Promise.all([
+        supabase.from('shipments').select('*').eq('user_id', user.id),
+        supabase.from('audit_logs').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+    ]);
+
+    return {
+        shipments: shipmentsRes.data || [],
+        auditLogs: auditsRes.data || []
+    };
+}
