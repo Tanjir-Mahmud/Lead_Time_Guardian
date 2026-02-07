@@ -73,7 +73,7 @@ export async function runAutonomousAudit(base64Image: string, isSimulated: boole
                 "HTTP-Referer": "https://lead-time-guardian.vercel.app", // Optional for OpenRouter
             },
             body: JSON.stringify({
-                model: "google/gemini-flash-1.5",
+                model: "google/gemini-3-flash-preview",
                 messages: [
                     {
                         role: "system",
@@ -132,6 +132,15 @@ You must audit the uploaded invoice. Even if the image is blurry or simulation m
         });
 
         const data = await response.json();
+
+        if (data.error) {
+            throw new Error(`OpenRouter API Error: ${data.error.message || JSON.stringify(data.error)}`);
+        }
+
+        if (!data.choices || data.choices.length === 0) {
+            throw new Error(`Invalid API Response: ${JSON.stringify(data)}`);
+        }
+
         const message = data.choices[0].message;
 
         // STEP B: Agentic Handshake (If Gemini asks for data)
@@ -190,9 +199,9 @@ You must audit the uploaded invoice. Even if the image is blurry or simulation m
         }
 
         return message.content;
-    } catch (error) {
+    } catch (error: any) {
         console.error("Autonomous Audit Failed:", error);
-        return "⚠️ Audit Engine is currently offline. Please check connectivity.";
+        return `⚠️ Audit Engine Error: ${error.message || "Unknown error"}`;
     }
 }
 
