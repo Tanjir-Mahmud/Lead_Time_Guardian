@@ -9,6 +9,11 @@ interface PDFData {
         road: string;
         sea: string;
         weather: string;
+        riskDetails?: {
+            hasRisk: boolean;
+            riskType: string;
+            description: string;
+        };
     };
     mathIntegrity: {
         fob: number;
@@ -166,11 +171,13 @@ export const generateCFOReport = (data: PDFData) => {
     autoTable(doc, {
         startY: currentY,
         margin: { left: margin, right: margin },
-        head: [['Road Status', 'Sea Status', 'Weather / Risk']],
+        head: [['Road Status', 'Sea Status', '72h Weather Outlook']],
         body: [[
             data.logistics.road,
             data.logistics.sea,
-            data.logistics.weather
+            data.logistics.riskDetails?.hasRisk
+                ? `⚠️ ${data.logistics.riskDetails.riskType}`
+                : '✅ Clear'
         ]],
         theme: 'plain',
         styles: {
@@ -193,7 +200,7 @@ export const generateCFOReport = (data: PDFData) => {
                 const text = data.cell.raw as string;
                 if (text.includes('Clear') || text.includes('Smooth') || text.includes('Safe')) {
                     data.cell.styles.textColor = [22, 163, 74]; // Green
-                } else {
+                } else if (text.includes('⚠️')) {
                     data.cell.styles.textColor = [220, 38, 38]; // Red
                 }
                 data.cell.styles.fontStyle = 'bold';

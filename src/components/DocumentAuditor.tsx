@@ -159,9 +159,31 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
 
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
 
-                                {/* 1. Logistics Alert (API Driven) */}
+                                {/* 1. Logistics Alert (API Driven & Predictive) */}
                                 <div className="space-y-4">
-                                    <h4 className="text-xs text-blue-400 uppercase tracking-widest font-bold border-b border-blue-500/30 pb-2">1. Logistics Alert (API Driven)</h4>
+                                    <h4 className="text-xs text-blue-400 uppercase tracking-widest font-bold border-b border-blue-500/30 pb-2">1. 72-HOUR RISK OUTLOOK</h4>
+
+                                    {/* Weather Risk Banner */}
+                                    {result.cfo_strategic_report.shipment_health?.risk_details?.hasRisk ? (
+                                        <div className="p-3 bg-red-900/20 border border-red-500/30 rounded flex items-start gap-3">
+                                            <AlertTriangle className="text-red-500 mt-1" size={16} />
+                                            <div>
+                                                <p className="text-sm font-bold text-red-400">⚠️ PREDICTIVE ALERT</p>
+                                                <p className="text-xs text-gray-300">
+                                                    {result.cfo_strategic_report.shipment_health.risk_details.description} detected. Impact on lead-time likely.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="p-3 bg-green-900/10 border border-green-500/20 rounded flex items-center gap-3">
+                                            <CheckCircle className="text-green-500" size={16} />
+                                            <div>
+                                                <p className="text-sm font-bold text-green-400">✅ CLEAR OUTLOOK</p>
+                                                <p className="text-xs text-gray-400">No weather risks in next 72h.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="grid grid-cols-3 gap-2 text-center">
                                         <div className="bg-black/40 p-2 rounded border border-white/10">
                                             <p className="text-[10px] text-gray-500 mb-1">ROAD (Barikoi)</p>
@@ -176,9 +198,9 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                             </p>
                                         </div>
                                         <div className="bg-black/40 p-2 rounded border border-white/10">
-                                            <p className="text-[10px] text-gray-500 mb-1">RISK (Weather)</p>
-                                            <p className={`font-bold ${result.cfo_strategic_report.shipment_health?.weather === 'Safe' ? 'text-green-400' : 'text-red-400'}`}>
-                                                {result.cfo_strategic_report.shipment_health?.weather || 'Scanning...'}
+                                            <p className="text-[10px] text-gray-500 mb-1">WEATHER (72h)</p>
+                                            <p className={`font-bold ${result.cfo_strategic_report.shipment_health?.risk_details?.hasRisk ? 'text-red-400' : 'text-green-400'}`}>
+                                                {result.cfo_strategic_report.shipment_health?.risk_details?.hasRisk ? result.cfo_strategic_report.shipment_health.risk_details.riskType : 'Clear'}
                                             </p>
                                         </div>
                                     </div>

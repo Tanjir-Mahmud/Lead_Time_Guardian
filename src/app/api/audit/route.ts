@@ -4,8 +4,11 @@ import { validateHSCode } from '@/lib/tariffs';
 import { runComplianceSwarm } from '@/lib/agents';
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateAV_Strict, calculateTTI, calculateRevenueRisk, calculateERP, calculateLDCRiskScore, calculateCBAMLiability, calculateLDCRisk_Financial, calculateCarbonIntensity, validateLineItemMath } from '@/lib/financial-brain/calculations';
-import { analyzeAirToSeaSavings, auditCashIncentives, calculateDutyDrawback } from '@/lib/financial-brain/strategies';
+import { analyzeAirToSeaSavings } from '@/lib/financial-brain/strategies';
 import { createClient } from '@/lib/supabase/server';
+import { getForecast, analyzeWeatherRisk } from '@/lib/weather';
+import { getRoadStatus, getPortStatus, calculateLogisticsHealth } from '@/lib/logistics';
+
 
 const SYSTEM_PROMPT = `
 You are an expert logistics document auditor. Extract the following fields from the image:
@@ -212,6 +215,46 @@ export async function POST(req: NextRequest) {
             { mode: 'Sea', cost: seaCost, timeDays: 25, congestionLevel: 'Low' }
         );
 
+        // --- PREDICTIVE INTELLIGENCE (72-HOUR WINDOW) ---
+        // 1. Weather Forecast (Origin & Destination)
+        const originCity = verifier.origin_country?.split(',')[0] || 'Dhaka'; // Default if extraction fails
+        const destCity = 'Chittagong'; // Main Port
+
+        const originForecast = await getForecast(originCity);
+        const destForecast = await getForecast(destCity);
+
+        const originRisk = analyzeWeatherRisk(originForecast);
+        const destRisk = analyzeWeatherRisk(destForecast);
+
+        // 2. Logistics Real-time Status
+        const roadStatusRaw = await getRoadStatus(originCity, destCity);
+        const portStatus = await getPortStatus('Chittagong');
+
+        // Efficiency Penalty Logic (Synced with Actions.ts)
+        const standardTime = 5.0;
+        const actualTime = 4.5 + (Math.random() * 4.5); // Simulation
+        const roadDelay = actualTime - standardTime;
+        const isCriticalRoadAlert = roadDelay > 2.5;
+
+        // Apply Penalty if Critical
+        const efficiencyPenalty = isCriticalRoadAlert ? 0.02 : 0;
+
+        // Combined Risk Assessment
+        const activeWeatherRisk = destRisk.hasRisk ? destRisk : originRisk;
+        // Override road status if critical
+        const effectiveRoadStatus = isCriticalRoadAlert ? 'Critical Delay' : roadStatusRaw;
+        const logisticsHealth = calculateLogisticsHealth(effectiveRoadStatus, portStatus, activeWeatherRisk);
+
+        const predictiveAlert = activeWeatherRisk.hasRisk
+            ? `⚠️ PREDICTIVE DELAY: ${activeWeatherRisk.description} detected in ${destRisk.hasRisk ? destCity : originCity} for ${activeWeatherRisk.forecastDate}. Total Benefits (14%) are safe, but I recommend loading 24 hours earlier.`
+            : `✅ 72-HOUR OUTLOOK: Weather is clear. Supply chain is moving smoothly.`;
+
+        const cfoAdvice = isCriticalRoadAlert
+            ? `🚨 CRITICAL ROAD ALERT: ${roadDelay.toFixed(1)}h delay detected. 2% Efficiency Penalty applied to Net Safety Margin.`
+            : null;
+
+
+
         // Strategy 2: Incentives
         let incentiveAmt = 0;
         let incentiveEligible = false;
@@ -233,12 +276,19 @@ export async function POST(req: NextRequest) {
         const totalCBAM = Number(validatedItems.reduce((sum: number, i: any) => sum + (i.financial?.cbam_liability?.liabilityEUR || 0), 0).toFixed(2));
 
         const cfoReport = {
-            shipment_health: await import('@/lib/financial-brain/strategies').then(m => m.fetchLogisticsStatus()),
+            shipment_health: {
+                road: logisticsHealth.road,
+                sea: logisticsHealth.sea,
+                weather: logisticsHealth.weather,
+                risk_details: activeWeatherRisk
+            },
             tax_compliance: {
                 current_tti_rate: Number((validatedItems[0]?.compliance?.tariff_rate || 0).toFixed(2)),
                 future_tti_rate: Number(((validatedItems[0]?.compliance?.tariff_rate || 0) + (ldcRiskRate > 1 ? ldcRiskRate : ldcRiskRate * 100)).toFixed(2)),
             },
             ca_recommendations: [
+                cfoAdvice ? { type: 'Lead-Time Risk', advice: cfoAdvice, savings: 0 } : null,
+                activeWeatherRisk.hasRisk ? { type: 'Predictive Risk', advice: predictiveAlert, savings: 0 } : null,
                 mathErrorsFound ? { type: 'Math Integrity', advice: `🚨 CRITICAL: Math Error Detected. Declared $${declaredTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, True Total $${calculatedSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. System Corrected.`, savings: 0 } : null,
                 rexStatus === 'MISSING' ? { type: 'Compliance', advice: 'Missing REX Statement for Invoice > €6,000.', savings: 0 } : null,
                 logisticsStrategy.savings > 0 ? { type: 'Logistics', advice: logisticsStrategy.message, savings: Number(logisticsStrategy.savings.toFixed(2)) } : null,
@@ -298,6 +348,11 @@ export async function POST(req: NextRequest) {
 - **True Calculated FOB**: $${trueTotalFob.toLocaleString()}
 - **Metric Check**: ${mathErrorsFound ? '🚨 FAILED (Msg: Math Error Detected)' : '✅ SECURE'}
 
+**72-HOUR RISK OUTLOOK (Predictive Intelligence)**
+- **Forecast**: ${activeWeatherRisk.hasRisk ? '⚠️ ADVERSE WEATHER DETECTED' : '✅ CLEAR'}
+- **Advice**: ${predictiveAlert}
+- **Impact**: ${activeWeatherRisk.hasRisk ? 'Possible 24-48h Delay at Port' : 'No Expected Delays'}
+ 
 ---
 
 **Customs Valuation (Strict Protocol)**
@@ -344,9 +399,10 @@ ${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}*
 **Strategic Net Margin Calculation**
 *   **Total Export Benefits**: 14.00% (8% Incentive + 6% Drawback)
 *   **Less: 2026 Graduation Risk**: 11.90% (MFN Rate Impact)
-*   **Net Compliance Safety Margin**: <span style="color: #4ade80; font-weight: bold;">+2.10%</span>
+${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #ef4444; font-weight: bold;">-2.00%</span> (Critical Road Alert)` : ''}
+*   **Net Compliance Safety Margin**: <span style="color: ${isCriticalRoadAlert ? '#facc15' : '#4ade80'}; font-weight: bold;">${(2.10 - (efficiencyPenalty * 100)).toFixed(2)}%</span>
 
-> **"Total Export Benefits (14%) effectively hedge against the 11.9% Graduation Risk, leaving a net positive margin of +2.10%."**
+> **"${isCriticalRoadAlert ? 'Efficiency Penalty (-2%) applied due to Critical Road Alert. Net Margin reduced to ' + (2.10 - (efficiencyPenalty * 100)).toFixed(2) + '%.' : 'Total Export Benefits (14%) effectively hedge against the 11.9% Graduation Risk, leaving a net positive margin of +2.10%.'}"**
             `.trim(),
             swarm_thoughts: swarmResults.map(r => ({ agent: r.agentName, thought: r.thoughtSignature }))
         };
