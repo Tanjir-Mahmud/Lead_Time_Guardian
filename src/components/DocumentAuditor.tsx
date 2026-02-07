@@ -54,22 +54,29 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                 const report = await runAutonomousAudit(base64, true);
 
                 // Construct a result object compatible with the UI
+                // Construct a result object compatible with the UI
                 setResult({
                     metadata: {
                         invoice_number: "SIMULATION-TEST",
-                        total_invoice_value: 0,
+                        total_invoice_value: 10000,
                         origin: "Simulation",
                         math_integrity: "SKIPPED"
                     },
                     strategic_audit_report: report,
                     cfo_strategic_report: {
                         shipment_health: { road: "CRITICAL (Sim)", sea: "N/A" },
-                        profit_protection: { ldc_graduation_risk_score: 10, revenue_risk: 0 },
-                        tax_summary: {},
+                        profit_protection: { ldc_graduation_risk_score: 10, revenue_risk: 1190 }, // 11.9% of 10k
+                        tax_summary: { total_assessable_value: 10201 },
                         ca_recommendations: [],
                         sustainability: { carbon_score: "N/A" }
                     },
-                    line_items: [],
+                    line_items: [{
+                        description: "Simulated Item (Stress Test)",
+                        quantity: 1,
+                        unit_price: 10000,
+                        hs_code: "6109.10",
+                        compliance: { valid: true }
+                    }],
                     compliance_summary: { sum_check_passed: true }
                 });
 

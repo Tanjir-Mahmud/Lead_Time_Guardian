@@ -54,6 +54,7 @@ const tools = [
 ];
 
 // --- 2. The Main Autonomous Engine ---
+// --- 2. The Main Autonomous Engine ---
 export async function runAutonomousAudit(base64Image: string, isSimulated: boolean = false) {
     const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -95,7 +96,7 @@ You must audit the uploaded invoice. Even if the image is blurry or simulation m
 
 3. DUAL-MODE LOGIC (WHAT-IF):
    - Current Mode: ${isSimulated ? "SIMULATION (STRESS TEST)" : "REAL-TIME AUDIT"}
-
+   
    IF (isSimulated == true):
      * OVERRIDE Live Road Data with "12-hour Critical Blockade".
      * APPLY "-5.00% Efficiency Penalty" to the Net Margin.
