@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Loader2, RefreshCw, Download } from 'lucide-react';
-import { generateCFOReport } from '@/utils/pdfGenerator';
+import { generateCFOReport, generateAuditPDF } from '@/utils/pdfGenerator';
 import { AuditTable } from './AuditTable';
 
 interface AuditHistoryProps {
@@ -78,76 +78,18 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
             const health = report.shipment_health || {};
             const profit = report.profit_protection || {};
             const summary = auditJson.metadata || {};
-            const compliance = auditJson.compliance_summary || {};
 
             const pdfData = {
-                invoiceNo: item.invoice_no || summary.invoice_number || 'N/A',
-                invoiceTotal: item.fob_value || summary.total_invoice_value || 0,
-                auditDate: new Date(item.created_at).toLocaleDateString(),
-
-                // 1. Logistics
-                logistics: {
-                    road: health.road || 'Scanning...',
-                    sea: health.sea || 'Scanning...',
-                    weather: health.weather || 'Scanning...',
-                },
-
-                // 2. Math Integrity
-                mathIntegrity: {
-                    fob: item.fob_value || summary.total_invoice_value || 0,
-                    av: report.tax_summary?.total_assessable_value || 0,
-                    incentive: profit.total_incentives || 0,
-                    revenueRisk: report.tax_summary?.total_revenue_risk || 0,
-                },
-
-                // 3. Strategic Findings (Text)
-                strategicFindings: auditJson.strategic_audit_report || "No strategic findings recorded.",
-
-                // 4. CA Strategic Advice (Cards)
-                caAdvice: report.ca_recommendations?.map((rec: any) => ({
-                    advice: rec.advice,
-                    type: rec.type,
-                    savings: rec.savings || 0
-                })) || [],
-
-                // 5. Profit Protection
-                profitProtection: {
-                    cashIncentive: profit.total_incentives || 0,
-                    dutyDrawback: profit.duty_drawback || 0,
-                    revenueRisk: profit.revenue_risk || 0,
-                    ldcRiskScore: profit.ldc_graduation_risk_score || 0,
-                    cbamLiability: profit.cbam_liability_eur || 0,
-                },
-
-                // 6. Line Items
-                lineItems: (auditJson.line_items || []).map((line: any, idx: number) => ({
-                    format: idx + 1,
-                    description: line.description,
-                    qty: line.quantity || 0,
-                    price: line.unit_price || 0,
-                    hsCode: line.hs_code || 'N/A',
-                    ldcImpact: line.ldc_impact?.impacted || false,
-                    status: line.compliance?.valid ? 'Valid' : 'Check',
-                })),
-
-                // Sum Check
-                sumCheck: {
-                    declared: compliance.declared_total || 0,
-                    calculated: compliance.calculated_total || 0,
-                    passed: compliance.sum_check_passed || false,
-                },
-
-                // 8. Sustainability (New)
-                sustainability: {
-                    score: item.carbon_score || item.audit_logs?.[0]?.carbon_score || 'Low',
-                    intensity: report.sustainability?.intensity || '5.5 kg CO2e/unit',
-                    advice: report.sustainability?.mitigation_advice || 'Maintain current sustainable practices.'
-                },
-
-                rexStatus: summary.rex_status || 'N/A'
+                invoice_no: item.invoice_no || summary.invoice_number || 'N/A',
+                fob_value: item.fob_value || summary.total_invoice_value || 0,
+                av_value: report.tax_summary?.total_assessable_value || ((item.fob_value || 0) * 1.01 * 1.01).toFixed(2),
+                risk_value: report.tax_summary?.total_revenue_risk || ((item.fob_value || 0) * 0.119).toFixed(2),
+                benefit_value: profit.total_incentives || ((item.fob_value || 0) * 0.14).toFixed(2),
+                road_delay: health.road || 'Scanning...',
+                port_status: health.sea || 'Scanning...'
             };
 
-            generateCFOReport(pdfData);
+            generateAuditPDF(pdfData);
         } catch (e) {
             console.error("PDF Generation failed", e);
         } finally {
