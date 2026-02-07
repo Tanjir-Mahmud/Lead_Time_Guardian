@@ -8,6 +8,7 @@ import { analyzeAirToSeaSavings } from '@/lib/financial-brain/strategies';
 import { createClient } from '@/lib/supabase/server';
 import { getForecast, analyzeWeatherRisk } from '@/lib/weather';
 import { getRoadStatus, getPortStatus, calculateLogisticsHealth } from '@/lib/logistics';
+import { KNOWLEDGE_BASE } from '@/lib/knowledge_base';
 
 
 const SYSTEM_PROMPT = `
@@ -248,9 +249,36 @@ export async function POST(req: NextRequest) {
         const effectiveRoadStatus = isCriticalRoadAlert ? 'Critical Delay' : roadStatusRaw;
         const logisticsHealth = calculateLogisticsHealth(effectiveRoadStatus, portStatus, activeWeatherRisk);
 
+        // --- KNOWLEDGE BASE INTEGRATION ---
+
+        // 1. Identify Corridor (Simplistic logic: Default to N1 for Dhaka-CTG)
+        // In a real app, we'd map Origin->Dest to specific keys.
+        const corridorKey = "Dhaka_Chattogram_N1";
+        const corridorData = KNOWLEDGE_BASE.logistics_knowledge_base.highway_corridors[corridorKey as keyof typeof KNOWLEDGE_BASE.logistics_knowledge_base.highway_corridors];
+
+        // 2. Identify Season
+        const currentMonth = new Date().getMonth(); // 0-11
+        let seasonalRisk = "None";
+        let seasonalBuffer = "";
+
+        // Jun(5)-Aug(7): Monsoon
+        if (currentMonth >= 5 && currentMonth <= 7) {
+            seasonalRisk = "Monsoon (Jun-Aug)";
+            seasonalBuffer = KNOWLEDGE_BASE.logistics_knowledge_base.seasonal_buffers.Monsoon_Jun_Aug;
+        }
+        // Dec(11)-Jan(0): Winter
+        else if (currentMonth === 11 || currentMonth === 0) {
+            seasonalRisk = "Winter (Dec-Jan)";
+            seasonalBuffer = KNOWLEDGE_BASE.logistics_knowledge_base.seasonal_buffers.Winter_Dec_Jan;
+        }
+
+        // 3. Port Insights (CTG Default)
+        const portData = KNOWLEDGE_BASE.logistics_knowledge_base.port_dwell_times.Chattogram_Port;
+
         const predictiveAlert = activeWeatherRisk.hasRisk
             ? `⚠️ PREDICTIVE DELAY: ${activeWeatherRisk.description} detected in ${destRisk.hasRisk ? destCity : originCity} for ${activeWeatherRisk.forecastDate}. Total Benefits (14%) are safe, but I recommend loading 24 hours earlier.`
             : `✅ 72-HOUR OUTLOOK: Weather is clear. Supply chain is moving smoothly.`;
+
 
         const cfoAdvice = isCriticalRoadAlert
             ? `🚨 CRITICAL ROAD ALERT: ${roadDelay.toFixed(1)}h delay detected. 2% Efficiency Penalty applied to Net Safety Margin.`
