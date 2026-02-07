@@ -234,7 +234,10 @@ export async function POST(req: NextRequest) {
         const standardTime = 5.0;
         const actualTime = 4.5 + (Math.random() * 4.5); // Simulation
         const roadDelay = actualTime - standardTime;
-        const isCriticalRoadAlert = roadDelay > 2.5;
+        const isCriticalRoadAlert = roadDelay > 3.0; // UPDATED THRESHOLD [cite: 2026-02-05]
+
+        // Port Congestion (Mock for Report)
+        const congestionIndex = Math.floor(Math.random() * 100);
 
         // Apply Penalty if Critical
         const efficiencyPenalty = isCriticalRoadAlert ? 0.02 : 0;
@@ -319,6 +322,12 @@ export async function POST(req: NextRequest) {
             }
         };
 
+        // Best Dispatch Time Logic
+        const bestTime = isCriticalRoadAlert ? "02:00 AM - 04:00 AM (Night)" : "10:00 PM - 06:00 AM (Off-Peak)";
+
+        // Net Margin Calculation for Display
+        const netMargin = (14.00 - 11.90 - (efficiencyPenalty * 100)).toFixed(2);
+
         const data: any = {
             metadata: {
                 invoice_number: verifier.invoice_number,
@@ -342,55 +351,11 @@ export async function POST(req: NextRequest) {
             cfo_strategic_report: cfoReport,
             // New Strategic Report from Agent (Overridden for Strictness)
             strategic_audit_report: `
-### 3. STRATEGIC COMPLIANCE AUDIT
-**Financial Integrity Analysis**
-- **Declared FOB**: $${declaredTotal.toLocaleString()}
-- **True Calculated FOB**: $${trueTotalFob.toLocaleString()}
-- **Metric Check**: ${mathErrorsFound ? '🚨 FAILED (Msg: Math Error Detected)' : '✅ SECURE'}
-
-**72-HOUR RISK OUTLOOK (Predictive Intelligence)**
-- **Forecast**: ${activeWeatherRisk.hasRisk ? '⚠️ ADVERSE WEATHER DETECTED' : '✅ CLEAR'}
-- **Advice**: ${predictiveAlert}
-- **Impact**: ${activeWeatherRisk.hasRisk ? 'Possible 24-48h Delay at Port' : 'No Expected Delays'}
- 
----
-
-**Customs Valuation (Strict Protocol)**
-- **Assessable Value (AV)**: $${cfoReport.tax_summary.total_assessable_value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-- **Formula**: (FOB * 1.01) * 1.01
-- **2026 Graduation Risk**: $${cfoReport.tax_summary.total_revenue_risk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (11.9% Impact)
-
-**Strategic Recommendations**
-${cfoReport.ca_recommendations.filter(r => r !== null).map(r => `- **${r?.type}**: ${r?.advice}`).join('\n')}
-
----
-
-### 🔍 AUDIT TRACEABILITY
-
-**1. Assessable Value (AV) Calculation**
-- **Why**: Determining the base value for customs duty assessment.
-- **Regulatory Source**: _(Source: [Customs Act 1969, Section 25] & [STS Chapter 2])_
-> **Calculation:** \`AV = (FOB * 1.01) * 1.01\` ⮕ \`$${trueTotalFob.toFixed(2)} * 1.01\` ⮕ \`$${(trueTotalFob * 1.01).toFixed(2)} * 1.01\` ⮕ **$${strictGlobalAV.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}** ✅
-
-**2. 2026 LDC Graduation Risk (Revenue Risk)**
-- **Why**: Post-LDC graduation, standard GSP rate transitions to MFN rate (11.9% Jump).
-- **Regulatory Source**: _(Source: [STS Chapter 2] & [Customs Act 23 - Graduation Clauses])_
-> **Calculation:** \`Risk = AV * 0.119\` ⮕ \`$${strictGlobalAV.toFixed(2)} * 0.119\` ⮕ **$${strictGlobalRisk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}** ⚠️
-
-**3. Cash Incentive Logic**
-- **Why**: Government subsidy for export sectors (currently set at ${incentiveRate > 1 ? incentiveRate : incentiveRate * 100}%).
-- **Regulatory Source**: _(Source: [FEB Circular: jul272025fepd30.pdf])_
-> **Calculation:** \`Incentive = FOB * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}\` ⮕ \`$${trueTotalFob.toFixed(2)} * ${(incentiveRate > 1 ? incentiveRate / 100 : incentiveRate).toFixed(2)}\` ⮕ **$${incentiveAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}** 💰
-
-**4. Duty Drawback Logic (Strict 6%)**
-- **Why**: Refund of import duties on raw materials used for export.
-- **Regulatory Source**: _(Source: [NBR Statutory Regulatory Order (SRO)])_
-> **Calculation:** \`Drawback = FOB * 0.06\` ⮕ \`$${trueTotalFob.toFixed(2)} * 0.06\` ⮕ **$${dutyDrawback.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}** 🔄
-
-**5. REX Requirement Check**
-- **Why**: Self-certification required for EU GSP exports over €6,000.
-- **Regulatory Source**: _(Source: [EU Rules of Origin.pdf])_
-> **Logic Trace:** \`Invoice Value > €6,480?\` ⮕ \`$${trueTotalFob.toFixed(2)} > $6,480?\` ⮕ **${isRexRequired ? 'YES (REX REQUIRED)' : 'NO (Below Threshold)'}** ⮕ Status: ${rexStatus}
+🛣️ Road Delay: ${roadDelay.toFixed(1)}h (${isCriticalRoadAlert ? '🔴 Critical' : '🟢 Stable'}). ${isCriticalRoadAlert ? 'Heavy congestion may add 12h to lead-time.' : 'Traffic flow normal.'}
+🚢 Port Status: ${congestionIndex !== undefined ? congestionIndex : 'N/A'}% Congestion. ${(congestionIndex > 70) ? 'Air Freight recommended to save delivery window.' : 'Sea Freight operations normal.'}
+⛈️ Weather Forecast: ${activeWeatherRisk.hasRisk ? `${activeWeatherRisk.description} predicted at ${destRisk.hasRisk ? destCity : originCity} within ${activeWeatherRisk.forecastDate || '72h'}. Start loading now.` : 'Clear skies. No loading delays expected.'}
+💰 Net Margin: +${netMargin}% Safety (After 11.9% LDC Risk & 14% Benefits${isCriticalRoadAlert ? ' & 2% Penalty' : ''}).
+🚀 Action: Dispatch vehicle between ${bestTime} to bypass peak traffic.
 
 ---
 
@@ -425,7 +390,7 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
 
         if (shipmentError) {
             console.error('Shipment Write Error:', shipmentError);
-            throw new Error(`Shipment DB Write Failed: ${shipmentError.message}`);
+            throw new Error(`Shipment DB Write Failed: ${shipmentError.message} `);
         }
 
         // 2. Insert into 'audit_logs' linked to shipment
