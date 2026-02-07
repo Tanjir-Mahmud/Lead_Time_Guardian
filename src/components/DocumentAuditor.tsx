@@ -140,6 +140,55 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
 
                     </div>
 
+                    {/* NEW: Multi-Currency Flash Audit Table */}
+                    {result.currency_flash && result.currency_flash.length > 0 && (
+                        <div className="bg-black/40 border border-gold/30 rounded-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+                            <div className="bg-gold/10 p-3 border-b border-gold/20 flex justify-between items-center">
+                                <h3 className="font-bold text-gold flex items-center gap-2 text-sm uppercase tracking-wider">
+                                    <span>⚡</span> Multi-Currency Flash Audit
+                                </h3>
+                                <div className="flex gap-2 text-[10px] text-gray-400">
+                                    <span className="px-2 py-1 bg-black/50 rounded border border-white/5">USD Buffer: 1.5%</span>
+                                    <span className="px-2 py-1 bg-black/50 rounded border border-white/5">EUR Buffer: 2.0%</span>
+                                    <span className="px-2 py-1 bg-black/50 rounded border border-white/5">BDT Buffer: 3.5%</span>
+                                </div>
+                            </div>
+                            <div className="p-4">
+                                <table className="w-full text-sm text-left text-gray-300">
+                                    <thead className="text-xs text-gray-500 uppercase border-b border-white/10">
+                                        <tr>
+                                            <th className="px-4 py-2">Currency</th>
+                                            <th className="px-4 py-2 text-right">Live Rate</th>
+                                            <th className="px-4 py-2 text-right">FOB Equivalent</th>
+                                            <th className="px-4 py-2 text-right">Net Margin</th>
+                                            <th className="px-4 py-2 text-right">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {result.currency_flash.map((curr: any, idx: number) => (
+                                            <tr key={idx} className={`hover:bg-white/5 transition-colors ${curr.status.includes('Recommended') ? 'bg-green-500/5' : ''}`}>
+                                                <td className="px-4 py-3 font-bold text-white">{curr.code}</td>
+                                                <td className="px-4 py-3 text-right font-mono text-gray-400">{curr.rate}</td>
+                                                <td className="px-4 py-3 text-right font-mono">{curr.fob_equivalent}</td>
+                                                <td className={`px-4 py-3 text-right font-bold ${parseFloat(curr.net_margin) > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {curr.net_margin}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <span className={`px-2 py-1 rounded text-xs border ${curr.status.includes('Recommended') ? 'bg-green-500/20 text-green-300 border-green-500/30' :
+                                                            curr.status.includes('Risk') ? 'bg-red-500/20 text-red-300 border-red-500/30' :
+                                                                'bg-gray-500/20 text-gray-300 border-gray-500/30'
+                                                        }`}>
+                                                        {curr.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
 
                     {/* CFO Strategic Audit (Format: User Request) */}
                     {result.cfo_strategic_report && (

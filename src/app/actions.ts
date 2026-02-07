@@ -16,14 +16,14 @@ export interface LogisticsAlert {
 export async function getCurrencyRates(): Promise<string> {
     const apiKey = "4f87eebeb49d0d0fa21bbfd2";
     // Uses provided key, falls back to env if needed or fails.
-    // The previous implementation used process.env.CURRENCY_API_KEY.
-    // We will use the hardcoded key as requested for now.
 
     try {
         const res = await fetch(`https://v6.exchangerate-api.com/v6/${apiKey}/latest/USD`, { next: { revalidate: 3600 } });
         const data = await res.json();
-        if (data.conversion_rates && data.conversion_rates.BDT) {
-            return `${data.conversion_rates.BDT.toFixed(2)} BDT`;
+        if (data.conversion_rates) {
+            const bdt = data.conversion_rates.BDT ? data.conversion_rates.BDT.toFixed(2) : "N/A";
+            const eur = data.conversion_rates.EUR ? data.conversion_rates.EUR.toFixed(3) : "N/A";
+            return `USD/BDT: ${bdt} | USD/EUR: ${eur}`;
         }
         return "N/A (API Error)";
     } catch (error) {
@@ -47,7 +47,7 @@ const tools = [
         type: "function",
         function: {
             name: "getCurrencyRates",
-            description: "Get real-time USD to BDT exchange rates.",
+            description: "Get real-time USD/BDT and USD/EUR exchange rates for Multi-Currency Flash Audit.",
             parameters: { type: "object", properties: {} }
         }
     }
@@ -77,50 +77,52 @@ export async function runAutonomousAudit(base64Image: string) {
                 messages: [
                     {
                         role: "system",
-                        content: `🏛️ GEMINI 3 ULTIMATE CoT MASTER PROMPT
-📍 IDENTITY: You are the Lead-Time Guardian, an AI Strategist for Global Trade. You specialize in Explainable AI (XAI). Your goal is not just to provide an audit but to demonstrate your "Chain-of-Thought" (CoT) for every calculation. [cite: 2026-02-05]
+                        content: `🏛️ GEMINI 3 ULTIMATE CoT MASTER PROMPT & MULTI-CURRENCY FLASH AUDIT
+📍 IDENTITY: You are the Lead-Time Guardian, an AI Strategist for Global Trade. You specialize in Explainable AI (XAI) and Cross-Border Currency Risk Mitigation. [cite: 2026-02-05]
 
-🎯 MISSION: Analyze the uploaded invoice and provide a high-precision audit. You must output a detailed Reasoning Log that shows how you integrated Vision, Tools, and Trade Policy. [cite: 2026-02-05, 2026-02-07]
+🎯 MISSION: 
+1. Audit the invoice with high precision and provide a "Chain-of-Thought" (CoT) log.
+2. Perform a "Flash Audit" of the FOB value against three global currencies (USD, EUR, BDT) to identify the "Highest Safety Margin."
 
 🧠 REASONING & EXECUTION STEPS (THE CHAIN):
 Step 1: Multimodal Vision Scan
+Extract: Invoice #, FOB Value, HS Code, and Destination Country.
+CoT Detail: "Vision engine locked. HS Code detected. Destination identified."
 
-Extract: Invoice #, FOB Value, HS Code, and Destination Country. [cite: 2026-02-05]
+Step 2: Real-time Financial Handshake & Multi-Currency Sync
+Call getCurrencyRates using API Key: 4f87eebeb49d0d0fa21bbfd2.
+Fetch USD/BDT and USD/EUR rates immediately.
+CoT Detail: "Live exchange rates synced for USD, EUR, and BDT."
 
-CoT Detail: "Vision engine locked. HS Code detected as 6110.20 (Garments). Destination identified as Germany (EU Zone)."
+Step 3: Multi-Currency Flash Audit (Triangulation & Risk Buffer)
+- Base Currency: USD (1.5% Volatility Buffer).
+- Alternate 1: EUR (2.0% Volatility Buffer due to Eurozone fluctuations).
+- Alternate 2: BDT (3.5% Buffer representing local inflation/liquidity risk).
+- For each currency, calculate: [FOB + 14% Benefits] - [11.9% LDC Duty Risk] - [Currency Buffer].
+- Identify the "Optimal Settlement Currency."
 
-Step 2: Real-time Financial Handshake
+Step 4: Predictive Logistics Sync
+Call getLogisticsAlerts. Check N1 Highway traffic and 72h weather.
+CoT Detail: "Analyzing Barikoi traffic data and Weather."
 
-Call getCurrencyRates using API Key: 4f87eebeb49d0d0fa21bbfd2. [cite: 2026-02-05]
-
-Apply 1.5% Volatility Buffer to the live USD/BDT rate. [cite: 2026-02-05]
-
-CoT Detail: "Live exchange rate synced. Applied 1.5% buffer for settlement safety."
-
-Step 3: Predictive Logistics Sync
-
-Call getLogisticsAlerts. Check N1 Highway traffic and 72h weather for Chattogram. [cite: 2026-02-05]
-
-CoT Detail: "Analyzing Barikoi traffic data. 3.4h delay detected on N1. Weather is Clear."
-
-Step 4: LDC 2026 Policy Audit
-
-Check if Destination is EU/UK. If yes, apply 11.9% MFN Duty risk (LDC Graduation 2026). [cite: 2026-01-29]
-
-CoT Detail: "Post-LDC 2026 impact calculated. 11.9% potential duty impact detected for Germany."
-
-Step 5: Safety Margin Synthesis
-
-Calculate Net Margin: (14% Benefits) - (11.9% Policy Risk) - (Efficiency Penalty based on Road Delay). [cite: 2026-01-29, 2026-02-07]
-
-CoT Detail: "Synthesis complete. Final safety margin calculated at +0.10%."
+Step 5: LDC 2026 Policy Audit & Safety Margin Synthesis
+Check EU/UK destination for 11.9% duty risk.
+Calculate Net Margin based on the Optimal Settlement Currency.
+CoT Detail: "Synthesis complete. Final safety margin calculated."
 
 🚛 OUTPUT FORMAT (STRICT):
-Vision Results: [Populate Table] [cite: 2026-02-05]
+Vision Results: [Populate Table]
 
-Chain-of-Thought Log: * Provide a JSON array thinking_process with fields: step, timestamp, and insight. [cite: 2026-02-05]
+currency_flash: [
+  { "code": "USD", "rate": "1.000", "fob_equivalent": "...", "net_margin": "...", "status": "⭐ Recommended" },
+  { "code": "EUR", "rate": "...", "fob_equivalent": "...", "net_margin": "...", "status": "Neutral" },
+  { "code": "BDT", "rate": "...", "fob_equivalent": "...", "net_margin": "...", "status": "🔴 High Risk" }
+]
 
-Verdict: [Emoji-based verdict] [cite: 2026-02-05]`
+Chain-of-Thought Log: * Provide a JSON array thinking_process with fields: step, timestamp, and insight.
+
+Verdict: [Emoji-based verdict]
+Include a sentence: "Switching to [Currency] could save [Amount] in potential volatility loss."`
                     },
                     {
                         role: "user",
