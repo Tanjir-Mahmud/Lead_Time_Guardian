@@ -147,8 +147,7 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
                         ]
                     }
                 ],
-                response_format: { type: 'json_object' },
-                include_reasoning: true,
+                // Removed response_format and include_reasoning - incompatible with Gemini 3
             } as any) as any;
 
             let cleanContent = response.choices[0].message.content || '{}';

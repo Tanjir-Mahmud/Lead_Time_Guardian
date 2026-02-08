@@ -191,7 +191,7 @@ Extract invoice data, perform a Triple-Currency Audit, and generate a STRICT JSO
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    model: "google/gemini-flash-1.5",
+                    model: "google/gemini-3-flash-preview",
                     messages: [
                         { role: "system", content: "Finalize the audit report based on the provided tool outputs and strict protocol." },
                         { role: "assistant", content: null, tool_calls: message.tool_calls },
