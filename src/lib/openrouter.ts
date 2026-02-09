@@ -54,6 +54,43 @@ export async function streamGeminiReasoning(
     }
 }
 
+// Streaming with image support for chat
+export async function streamGeminiWithImage(
+    messages: any[],
+    image: string | undefined,
+    mimeType: string | undefined,
+    onChunk: (content: string, reasoning: string) => void
+) {
+    // If image provided, add it to the last user message
+    const processedMessages = [...messages];
+    if (image && mimeType) {
+        const lastUserIdx = processedMessages.findLastIndex((m: any) => m.role === 'user');
+        if (lastUserIdx >= 0) {
+            const userContent = processedMessages[lastUserIdx].content;
+            processedMessages[lastUserIdx].content = [
+                {
+                    type: 'image_url',
+                    image_url: { url: `data:${mimeType};base64,${image}` }
+                },
+                { type: 'text', text: userContent || 'Analyze this document' }
+            ];
+        }
+    }
+
+    const stream = await getOpenRouter().chat.completions.create({
+        model: 'google/gemini-2.0-flash-001',
+        messages: processedMessages,
+        stream: true,
+    } as any) as any;
+
+    for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        // @ts-ignore
+        const usageReasoning = chunk.usage?.reasoningTokens;
+        onChunk(content, usageReasoning ? JSON.stringify(usageReasoning) : '');
+    }
+}
+
 // Deprecated: prefer getOpenRouter()
 export const openrouter = {
     get chat() {

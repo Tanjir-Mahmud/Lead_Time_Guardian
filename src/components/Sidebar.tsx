@@ -1,7 +1,7 @@
 
 'use client';
 
-import { LayoutDashboard, FileText, ShieldCheck, BarChart3, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, FileText, ShieldCheck, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -41,18 +41,11 @@ export function Sidebar() {
                 })}
             </nav>
 
+            {/* 2026 Status Badge - Always Active */}
             <div className="p-4 border-t border-white/10">
-                <div className="p-4 bg-alertRed/10 rounded-lg border border-alertRed/20 mb-4">
-                    <p className="text-xs text-alertRed font-bold">LDC Graduation Alert</p>
-                    <p className="text-xs text-gray-300 mt-1">289 Days Remaining</p>
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>2026 Rates</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" className="sr-only peer" />
-                        <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold"></div>
-                    </label>
+                <div className="p-4 bg-green-500/10 rounded-lg border border-green-500/20">
+                    <p className="text-xs text-green-400 font-bold">✓ 2026 Rates Active</p>
+                    <p className="text-xs text-gray-300 mt-1">11.9% MFN Duty Applied</p>
                 </div>
             </div>
         </div>

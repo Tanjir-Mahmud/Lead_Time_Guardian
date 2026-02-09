@@ -320,14 +320,39 @@ export async function getAnalyticsData() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
+    console.log('[DASHBOARD] getAnalyticsData called');
+    console.log('[DASHBOARD] User authenticated:', !!user);
+    console.log('[DASHBOARD] User ID:', user?.id);
+
     if (!user) {
+        console.log('[DASHBOARD] ❌ No user - returning empty');
         return { shipments: [], auditLogs: [] };
     }
 
     const [shipmentsRes, auditsRes] = await Promise.all([
         supabase.from('shipments').select('*').eq('user_id', user.id),
-        supabase.from('audit_logs').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+        supabase.from('audit_logs').select('*').eq('user_id', user.id)
     ]);
+
+    console.log('[DASHBOARD] Shipments query result:', {
+        count: shipmentsRes.data?.length || 0,
+        error: shipmentsRes.error,
+        hasData: !!shipmentsRes.data
+    });
+
+    console.log('[DASHBOARD] Audit logs query result:', {
+        count: auditsRes.data?.length || 0,
+        error: auditsRes.error,
+        hasData: !!auditsRes.data
+    });
+
+    if (shipmentsRes.error) {
+        console.error('[DASHBOARD] Shipments error:', shipmentsRes.error);
+    }
+
+    if (auditsRes.error) {
+        console.error('[DASHBOARD] Audit logs error:', auditsRes.error);
+    }
 
     return {
         shipments: shipmentsRes.data || [],

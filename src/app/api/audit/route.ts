@@ -403,23 +403,40 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
         // --- AUDIT LOG STORAGE (Integrity Protocol) ---
         // 1. Insert into 'shipments' (Fail on Duplicate or Upsert)
         // Using upsert or select to ensure we don't duplicate on same invoice_no
+        console.log('[DB SYNC] Attempting to write shipment:', {
+            invoice_no: data.metadata?.invoice_number || 'UNKNOWN',
+            value: trueTotalFob,
+            user_id: user.id
+        });
+
+        // Extract origin city - prioritize direct origin_city from AI, then parse from origin_country
+        const originRaw = verifier.origin_country || data.metadata?.origin || '';
+        const shipmentOriginCity = verifier.origin_city || originRaw.split(',')[0]?.trim() || 'Dhaka';
+
+        console.log('[MAP] Origin city extracted:', shipmentOriginCity, 'from raw:', originRaw);
+
         const { data: shipmentData, error: shipmentError } = await supabase
             .from('shipments')
             .upsert([{
                 user_id: user.id,
                 invoice_no: data.metadata?.invoice_number || 'UNKNOWN',
-                fob_value: trueTotalFob, // Save CORRECTED value
+                fob_value: trueTotalFob,
                 hs_code: validatedItems[0]?.hs_code || 'MIXED',
-                // STATUS PROTOCOL: Verified ONLY if Math is secure
-                status: mathErrorsFound ? 'Flagged' : 'Verified'
+                // 🧠 SUPREME INTELLIGENCE MAPPING
+                destination: data.metadata?.destination || 'Global',
+                origin_city: shipmentOriginCity, // For map display
+                lead_time_days: Number(calculator?.predictive_metadata?.lead_time_days) || 30,
+                status: calculator?.predictive_metadata?.shipment_status || (mathErrorsFound ? 'Flagged' : 'Verified')
             }], { onConflict: 'invoice_no' })
             .select()
             .single();
 
         if (shipmentError) {
-            console.error('Shipment Write Error:', shipmentError);
+            console.error('[DB SYNC] ❌ Shipment Write Error:', shipmentError);
             throw new Error(`Shipment DB Write Failed: ${shipmentError.message} `);
         }
+
+        console.log('[DB SYNC] ✅ Shipment saved successfully:', shipmentData.id);
 
         // 2. Insert into 'audit_logs' linked to shipment
         const auditPayload: any = {
@@ -430,23 +447,27 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
             risk_score: cfoReport.profit_protection.ldc_graduation_risk_score,
             audit_json: data, // Keeping full JSON for redundancy/debugging
             user_id: user.id, // Tag with user_id for RLS ownership
-            carbon_score: cfoReport.sustainability.carbon_score // 🟢 Synced with DB
+            carbon_score: calculator?.predictive_metadata?.carbon_score || cfoReport.sustainability.carbon_score // 🧠 AI Carbon Score
         };
+
+        console.log('[DB SYNC] Attempting to write audit log for shipment:', shipmentData.id);
 
         let { error: auditError } = await supabase.from('audit_logs').insert([auditPayload]);
 
         // Fallback: If 'carbon_score' column is missing, try inserting without it
         if (auditError && auditError.message.includes('carbon_score')) {
-            console.warn('Carbon Score column missing, retrying without it...');
+            console.warn('[DB SYNC] Carbon Score column missing, retrying without it...');
             delete auditPayload.carbon_score;
             const retry = await supabase.from('audit_logs').insert([auditPayload]);
             auditError = retry.error;
         }
 
         if (auditError) {
-            console.error('Audit Log Write Error:', auditError);
+            console.error('[DB SYNC] ❌ Audit Log Write Error:', auditError);
             throw new Error(`Audit Log DB Write Failed: ${auditError.message} `);
         }
+
+        console.log('[DB SYNC] ✅ Audit log saved successfully!');
 
         // Append Sync Success Message
         data.sync_status = `✅ Refined Audit Synced.Math Integrity: ${mathErrorsFound ? 'CORRECTED 🚨' : 'SECURE'}.`;

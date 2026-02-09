@@ -3,9 +3,7 @@
 
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet/dist/leaflet.css';
-// import 'leaflet-routing-machine'; // Moved to dynamic import
-import 'leaflet-routing-machine/dist/leaflet-routing-machine.css'; // CSS is fine usually, but better safe? No CSS is fine.
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 
 import { Icon } from 'leaflet';
 import L from 'leaflet';
@@ -30,26 +28,75 @@ const portIcon = new Icon({
     iconAnchor: [12, 41],
 });
 
-// Coordinates
-const FACTORY_POS = [23.8103, 90.4125] as [number, number]; // Dhaka
-const PORT_POS = [22.3569, 91.7832] as [number, number]; // Chattogram
+// Bangladesh City Coordinates
+const CITY_COORDINATES: Record<string, [number, number]> = {
+    'dhaka': [23.8103, 90.4125],
+    'gazipur': [24.0022, 90.4264],
+    'mymensingh': [24.7471, 90.4203],
+    'narayanganj': [23.6238, 90.5000],
+    'chittagong': [22.3569, 91.7832],
+    'chattogram': [22.3569, 91.7832],
+    'sylhet': [24.8949, 91.8687],
+    'rajshahi': [24.3745, 88.6042],
+    'khulna': [22.8456, 89.5403],
+    'comilla': [23.4607, 91.1809],
+    'tongi': [23.9322, 90.4014],
+    'bogra': [24.8465, 89.3773],
+    'rangpur': [25.7439, 89.2752],
+    'barisal': [22.7010, 90.3535],
+    'savar': [23.8583, 90.2667],
+    'ashulia': [23.9000, 90.3167],
+};
 
-function RoutingControl() {
+// Default positions
+const DEFAULT_FACTORY_POS: [number, number] = [23.8103, 90.4125]; // Dhaka
+const PORT_POS: [number, number] = [22.3569, 91.7832]; // Chattogram
+
+// Get coordinates from city name
+function getCityCoordinates(cityName: string): [number, number] {
+    if (!cityName) return DEFAULT_FACTORY_POS;
+
+    const normalized = cityName.toLowerCase().trim();
+
+    // Check for exact match
+    if (CITY_COORDINATES[normalized]) {
+        return CITY_COORDINATES[normalized];
+    }
+
+    // Check for partial match
+    for (const [key, coords] of Object.entries(CITY_COORDINATES)) {
+        if (normalized.includes(key) || key.includes(normalized)) {
+            return coords;
+        }
+    }
+
+    return DEFAULT_FACTORY_POS;
+}
+
+interface RoutingControlProps {
+    originPos: [number, number];
+}
+
+function RoutingControl({ originPos }: RoutingControlProps) {
     const map = useMap();
 
     useEffect(() => {
         if (!map) return;
 
-        // Dynamic import to avoid SSR/Module eval issues
+        let routingControl: any = null;
+        let isMounted = true;
+
         const initRouting = async () => {
             try {
                 const L = await import('leaflet');
                 await import('leaflet-routing-machine');
 
+                if (!isMounted || !map) return;
+
                 // @ts-ignore
-                const routingControl = L.Routing.control({
+                routingControl = L.Routing.control({
                     waypoints: [
-                        L.latLng(FACTORY_POS[0], FACTORY_POS[1]),
+                        L.latLng(originPos[0], originPos[1]),
                         L.latLng(PORT_POS[0], PORT_POS[1])
                     ],
                     routeWhileDragging: false,
@@ -64,38 +111,50 @@ function RoutingControl() {
                     createMarker: function () { return null; }
                 } as any);
 
-                routingControl.addTo(map);
-
-                // Cleanup
-                return () => {
-                    try {
-                        map.removeControl(routingControl);
-                    } catch (e) {
-                        console.warn('Map control cleanup error', e);
-                    }
-                };
+                if (routingControl && map) {
+                    routingControl.addTo(map);
+                }
             } catch (e) {
                 console.error('Failed to load routing machine', e);
             }
         };
 
-        const cleanupPromise = initRouting();
+        initRouting();
 
-        // Return cleanup function if init returns one (it's async so trickier, but simple ref ok)
         return () => {
-            // no-op for async safety, actual cleanup handled inside 
+            isMounted = false;
+            if (routingControl && map) {
+                try {
+                    if (routingControl._map) {
+                        map.removeControl(routingControl);
+                    }
+                } catch (e) {
+                    console.debug('Map control cleanup skipped', e);
+                }
+            }
         };
 
-    }, [map]);
+    }, [map, originPos]);
 
     return null;
 }
 
-export default function SmartMap() {
+interface SmartMapProps {
+    originCity?: string;
+}
+
+export default function SmartMap({ originCity }: SmartMapProps) {
+    const originPos = getCityCoordinates(originCity || '');
+    const originLabel = originCity || 'Factory (Dhaka)';
+
+    // Calculate center between origin and port
+    const centerLat = (originPos[0] + PORT_POS[0]) / 2;
+    const centerLng = (originPos[1] + PORT_POS[1]) / 2;
+
     return (
         <div className="h-[400px] w-full rounded-xl overflow-hidden border border-gold/20 shadow-2xl relative z-0">
             <MapContainer
-                center={[23.1, 91.1]}
+                center={[centerLat, centerLng]}
                 zoom={7}
                 style={{ height: '100%', width: '100%' }}
                 className="z-0"
@@ -103,21 +162,19 @@ export default function SmartMap() {
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                // Switched to CartoDB Dark Matter for "Industrial High-Tech" look
                 />
 
-                <Marker position={FACTORY_POS} icon={factoryIcon}>
-                    <Popup>Factory (Dhaka)</Popup>
+                <Marker position={originPos} icon={factoryIcon}>
+                    <Popup>{originLabel}</Popup>
                 </Marker>
 
                 <Marker position={PORT_POS} icon={portIcon}>
                     <Popup>Chattogram Port</Popup>
                 </Marker>
 
-                <RoutingControl />
+                <RoutingControl originPos={originPos} />
             </MapContainer>
 
-            {/* Overlay label */}
             <div className="absolute top-4 right-4 z-[400] bg-navy/80 backdrop-blur border border-gold/20 p-2 rounded text-xs text-gold">
                 AI Route Optimized
             </div>

@@ -122,7 +122,7 @@ export default function AnalyticsPage() {
                                             key={idx}
                                             id={s.shipment_id || s.id || 'N/A'}
                                             dest={s.destination || 'Unknown'}
-                                            val={`$${s.value?.toLocaleString() || 0}`}
+                                            val={`$${s.fob_value?.toLocaleString() || 0}`}
                                             status={s.status || 'Pending'}
                                             time={`${s.lead_time_days || 0} Days`}
                                             isError={s.status === 'Delayed'}

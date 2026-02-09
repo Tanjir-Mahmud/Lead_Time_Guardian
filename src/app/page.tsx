@@ -41,6 +41,7 @@ export default function Home() {
     });
     const [alerts, setAlerts] = useState<LogisticsAlert[]>([]);
     const [loading, setLoading] = useState(true);
+    const [originCity, setOriginCity] = useState<string>('');
 
     useEffect(() => {
         async function fetchStats() {
@@ -73,6 +74,12 @@ export default function Home() {
                     onTimeRate,
                     carbonScore
                 });
+
+                // Get latest shipment origin city for map
+                if (shipments.length > 0) {
+                    const latestShipment = shipments[shipments.length - 1];
+                    setOriginCity(latestShipment.origin_city || '');
+                }
             } catch (e) {
                 console.error("Failed to fetch dashboard stats", e);
             } finally {
@@ -124,7 +131,7 @@ export default function Home() {
                 {/* Map Section */}
                 <div className="col-span-8 flex flex-col gap-6 overflow-y-auto pr-2">
                     <div className="relative group">
-                        <SmartMap />
+                        <SmartMap originCity={originCity} />
                     </div>
                     {/* Revenue Meter integrated below map if needed, or keep separate. 
                         User layout is flexible. Let's keep Meter here. */}

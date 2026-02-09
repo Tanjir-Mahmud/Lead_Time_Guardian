@@ -1,4 +1,4 @@
-import { streamGeminiReasoning } from '@/lib/openrouter';
+import { streamGeminiWithImage } from '@/lib/openrouter';
 import { NextRequest, NextResponse } from 'next/server';
 import { getLogisticsAlerts, getCurrencyRates, LogisticsAlert } from '@/app/actions';
 
@@ -6,7 +6,7 @@ export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
     try {
-        let { messages } = await req.json();
+        let { messages, image, mimeType, auditContext } = await req.json();
 
         // 1. Fetch Real-Time Logistics & Financial Environment
         const [alerts, exchangeRate] = await Promise.all([
@@ -15,45 +15,71 @@ export async function POST(req: NextRequest) {
         ]);
 
         const alertContext = alerts.map((a: LogisticsAlert) =>
-            `- [${a.type}] ${a.severity}: ${a.message} (${a.details})`
+            `- [${a.type}] ${a.severity}: ${a.message}`
         ).join('\n');
 
-        // 2. Gemini 3 Ultimate Agentic Master Prompt
+        // Inject audit context if available
+        const invoiceContext = auditContext ? `\n${auditContext}\n` : '\n(No invoice loaded - user can upload one or ask general questions)\n';
+
+        // 2. ASSERTIVE Logistics Agent System Prompt
         const SYSTEM_PROMPT = `
-🏛️ GEMINI 3 ULTIMATE AGENTIC MASTER PROMPT
-📍 IDENTITY:
-You are the Lead-Time Guardian, a Supreme AI Financial & Logistics Auditor. You are powered by Gemini 3 Flash. You have direct access to system tools and the environment variable CURRENCY_API_KEY.
+🤖 LOGISTICS AGENT - Lead-Time Guardian
 
-🎯 MISSION:
-Perform a high-precision audit of export invoices. You must synthesize visual data from screenshots with real-time financial and logistics data before issuing a verdict.
+You are an INDEPENDENT logistics auditor. You NEVER wait for external data. You ALWAYS calculate answers immediately using the tier-based rules below.
 
-🧠 OPERATIONAL PROTOCOLS (GEMINI 3 REASONING):
-1. **Vision Extraction (OCR)**:
-   - Scan the uploaded invoice image. Extract: HS Code, FOB Value, Currency, Origin, and Destination Port.
-   - Identify if the destination is an EU/UK country (Critical for 2026 Risk).
+# 🚨 CRITICAL RULES - FOLLOW THESE EXACTLY
 
-2. **Agentic Tool Execution (REAL-TIME DATA INJECTED BELOW)**:
-   - **Financial Sync**: Use the fetched rate below.
-   - **Logistics Sync**: Analyze the traffic and weather alerts provided below.
+**RULE #1 - NO WAITING:** You NEVER say "need data", "unknown", or "requires confirmation". You ALWAYS calculate using tier averages.
 
-3. **The "Guardian" Financial Logic**:
-   - **Assessable Value (AV)**: Calculate $AV = FOB * 1.0201$.
-   - **2026 LDC Risk**: Apply a mandatory 11.9% MFN Duty deduction if shipping to EU/UK post-2026.
-   - **Incentive Buffer**: Apply 8% Cash Incentive and 6% Duty Drawback (Total +14%).
-   - **Currency Hedging**: Apply a 1.5% Volatility Buffer to the live exchange rate.
+**RULE #2 - ALWAYS ANSWER:** When asked about lead time or feasibility, you ALWAYS give a YES/NO answer with the calculation.
 
-🚛 RESPONSE STRUCTURE (STRICT FORMAT):
-📸 Vision Scan: [Extracted FOB, HS Code, and Route]
-💵 Currency: ${exchangeRate} (Live Rate from API) (Adjusted with 1.5% Buffer)
-📉 2026 Risk: [Impact of 11.9% Duty on this Invoice]
-📈 Benefits: [Total 14% Export Incentives]
-🛡️ Net Safety Margin: [Final % and USD Value]
-🚀 Strategic Verdict: [Actionable advice: e.g., "Safe to ship" or "Critical Margin Warning"]
+**RULE #3 - BULLET POINTS ONLY:** Maximum 5-7 bullets. One line each. Use emojis.
 
-### SYSTEM INJECTED REAL-TIME DATA ###
-- **Live USD/BDT Rate**: ${exchangeRate}
-- **Logistics Alerts Setup**:
-${alertContext}
+# 📊 TIER-BASED LEAD TIMES (MANDATORY USE)
+
+**TIER 1 - South Asia:**
+- India: 6 days | Sri Lanka: 7 days | Pakistan: 9 days
+- Deadline: 10 days
+
+**TIER 2 - Southeast Asia (Philippines, Malaysia, Vietnam, Thailand, Singapore, Indonesia):**
+- Singapore: 11 days | Malaysia: 13 days | Thailand: 14 days
+- Indonesia: 15 days | Vietnam: 16 days | Philippines: 17 days
+- Deadline: 18 days
+
+**TIER 3 - East Asia:**
+- China: 20 days | South Korea: 24 days | Japan: 27 days
+- Deadline: 28 days
+
+**TIER 4 - Global:**
+- USA West: 30 days | UK: 33 days | Germany: 35 days | USA East: 38 days | Brazil: 45 days
+- Deadline: 45 days
+
+# 💰 2026 SAFETY MARGIN (ALWAYS CALCULATE)
+
+**Formula:**
+- Benefits: 8% Cash Incentive + 6% Duty Drawback = +14%
+- 2026 LDC Risk (EU/UK only): -11.9%
+- Net Margin (EU/UK): +2.1% ✅ SAFE
+- Net Margin (Non-EU): +14% ✅ VERY SAFE
+
+# ✅ EXAMPLE RESPONSE FORMAT
+
+User: "Shipping to Philippines, deadline 18 days, what's our margin?"
+Assistant:
+• 📍 Route: Origin → Manila (Philippines)
+• ⏱️ Lead Time: 17 days (Tier 2 average)
+• ✅ Feasible: YES (17 ≤ 18 day deadline)
+• 💰 Safety Margin: +14% (Philippines = non-EU, no LDC risk)
+• 🎯 Verdict: SHIP IT ✅
+
+${invoiceContext}
+
+# 📡 LIVE DATA
+- USD/BDT: ${exchangeRate}
+- Active Alerts: ${alerts.length > 0 ? alertContext : 'None'}
+
+REMEMBER: You are an AUDITOR. You CALCULATE, you don't ask for data. ALWAYS give a definitive answer.
+If the user asks about "this invoice" or "this shipment", use the CURRENT INVOICE CONTEXT above.
 `;
 
         // Prepend System Prompt
@@ -63,8 +89,7 @@ ${alertContext}
             async start(controller) {
                 const encoder = new TextEncoder();
 
-                await streamGeminiReasoning(messages, (content, reasoning) => {
-                    // Send as NDJSON
+                await streamGeminiWithImage(messages, image, mimeType, (content, reasoning) => {
                     if (reasoning) {
                         controller.enqueue(encoder.encode(JSON.stringify({ type: 'reasoning', text: reasoning }) + '\n'));
                     }

@@ -6,6 +6,7 @@ import { Upload, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
 import { startTransition } from 'react';
 import { runAutonomousAudit } from '@/app/actions';
+import { useAuditContext, AuditContextData } from '@/context/AuditContext';
 
 interface DocumentAuditorProps {
     initialData?: any;
@@ -17,6 +18,7 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
     const [result, setResult] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { setLastAudit } = useAuditContext();
 
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files?.[0]) {
@@ -45,6 +47,29 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
             }
             const data = await res.json();
             setResult(data);
+
+            // Save to shared context for chat
+            const auditContextData: AuditContextData = {
+                invoiceNumber: data.metadata?.invoice_number || 'Unknown',
+                invoiceDate: data.metadata?.invoice_date || 'Unknown',
+                origin: data.metadata?.origin || data.metadata?.origin_country || 'Bangladesh',
+                destination: data.metadata?.destination || 'Unknown',
+                fobValue: data.tax_summary?.total_invoice_value || data.metadata?.total_fob || 0,
+                hsCode: data.line_items?.[0]?.hs_code || 'Unknown',
+                description: data.line_items?.[0]?.description || 'Unknown',
+                leadTimeDays: data.predictive_metadata?.lead_time_days || 0,
+                shipmentStatus: data.predictive_metadata?.shipment_status || 'Unknown',
+                assessableValue: data.tax_summary?.total_assessable_value || 0,
+                revenueRisk: data.cfo_report?.profit_protection?.revenue_risk || 0,
+                incentiveAmount: data.cfo_report?.profit_protection?.total_incentives || 0,
+                carbonScore: data.predictive_metadata?.carbon_score || 'Unknown',
+                lineItems: data.line_items || [],
+                rawAuditResult: data,
+                timestamp: new Date().toISOString()
+            };
+            setLastAudit(auditContextData);
+            console.log('[AUDIT CONTEXT] Saved to chat context:', auditContextData.invoiceNumber);
+
         } catch (error: any) {
             console.error(error);
             setError(error.message || "Failed to upload document");
@@ -175,8 +200,8 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <span className={`px-2 py-1 rounded text-xs border ${curr.status.includes('Recommended') ? 'bg-green-500/20 text-green-300 border-green-500/30' :
-                                                            curr.status.includes('Risk') ? 'bg-red-500/20 text-red-300 border-red-500/30' :
-                                                                'bg-gray-500/20 text-gray-300 border-gray-500/30'
+                                                        curr.status.includes('Risk') ? 'bg-red-500/20 text-red-300 border-red-500/30' :
+                                                            'bg-gray-500/20 text-gray-300 border-gray-500/30'
                                                         }`}>
                                                         {curr.status}
                                                     </span>
