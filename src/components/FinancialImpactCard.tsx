@@ -12,9 +12,13 @@ interface FinancialImpactProps {
             zero_tariff_reason: string;
             tariff_cost_usd: number;
             tariff_savings_usd: number;
+            trade_agreements?: string[];
+            tariff_source?: string;
         };
         financial_impact?: {
             fob_value_usd: number;
+            standard_cost_usd: number;
+            optimized_cost_usd: number;
             tariff_cost_usd: number;
             delay_penalty_usd: number;
             insurance_buffer_usd: number;
@@ -58,14 +62,15 @@ export function FinancialImpactCard({ report, guardianReport }: FinancialImpactP
     const tariff = report.tariff_analysis;
     const financial = report.financial_impact;
     const fobValue = financial?.fob_value_usd || 0;
-    const tariffCost19 = Number((fobValue * 0.19).toFixed(2));
-    const tariffCost0 = 0;
-    const savings = tariffCost19;
+    const baselineRate = tariff?.baseline_tariff_pct ?? 7;
+    const appliedRate = tariff?.applied_tariff_pct ?? baselineRate;
+    const standardCost = financial?.standard_cost_usd ?? Number((fobValue * (baselineRate / 100)).toFixed(2));
+    const optimizedCost = financial?.optimized_cost_usd ?? Number((fobValue * (appliedRate / 100)).toFixed(2));
+    const savings = standardCost - optimizedCost;
     const isZeroEligible = tariff?.zero_tariff_eligible || false;
-    const appliedRate = tariff?.applied_tariff_pct ?? 19;
-    const actualCost = Number((fobValue * (appliedRate / 100)).toFixed(2));
     const leadTime = report.predicted_lead_time || '—';
     const priority = report.priority_classification || 'Standard';
+    const tradeAgreements = tariff?.trade_agreements || [];
 
     const priorityColor = priority.includes('Critical')
         ? 'text-red-400 bg-red-500/10 border-red-500/30'
@@ -109,42 +114,42 @@ export function FinancialImpactCard({ report, guardianReport }: FinancialImpactP
 
             {/* Main Comparison Cards */}
             <div className="p-4 grid grid-cols-2 gap-4">
-                {/* 19% Tariff Scenario */}
+                {/* Standard Cost Scenario */}
                 <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-16 h-16 bg-red-500/5 rounded-bl-full"></div>
                     <div className="flex items-center gap-2 mb-3">
                         <TrendingDown className="text-red-400" size={16} />
-                        <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Standard 19% Tax</span>
+                        <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Standard Cost ({baselineRate}%)</span>
                     </div>
                     <p className="text-3xl font-bold text-red-400 font-mono">
-                        ${tariffCost19.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        ${standardCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </p>
-                    <p className="text-[10px] text-gray-500 mt-1">Tax liability on ${fobValue.toLocaleString()} FOB</p>
+                    <p className="text-[10px] text-gray-500 mt-1">Duty on ${fobValue.toLocaleString()} FOB</p>
                     <div className="mt-3 h-1.5 bg-red-500/20 rounded-full overflow-hidden">
                         <div className="h-full bg-gradient-to-r from-red-500 to-red-400 rounded-full" style={{ width: '100%' }}></div>
                     </div>
                 </div>
 
-                {/* 0% Tariff Scenario */}
+                {/* Optimized Cost Scenario */}
                 <div className={`${isZeroEligible ? 'bg-green-500/10 border-green-500/30' : 'bg-green-500/5 border-green-500/20'} border rounded-xl p-4 relative overflow-hidden`}>
                     <div className="absolute top-0 right-0 w-16 h-16 bg-green-500/5 rounded-bl-full"></div>
                     <div className="flex items-center gap-2 mb-3">
                         <Shield className={isZeroEligible ? "text-green-400" : "text-green-400/50"} size={16} />
                         <span className={`${isZeroEligible ? 'text-green-400' : 'text-green-400/50'} text-xs font-bold uppercase tracking-wider`}>
-                            Zero-Tariff (0%)
+                            Optimized ({appliedRate}%)
                         </span>
                         {isZeroEligible && (
                             <span className="text-[9px] bg-green-500/20 px-1.5 py-0.5 rounded text-green-300 border border-green-500/30">ACTIVE</span>
                         )}
                     </div>
                     <p className={`text-3xl font-bold font-mono ${isZeroEligible ? 'text-green-400' : 'text-green-400/50'}`}>
-                        $0.00
+                        ${optimizedCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </p>
                     <p className="text-[10px] text-gray-500 mt-1">
-                        {isZeroEligible ? 'Eligible: Destination-origin raw materials detected' : 'Requires destination-origin raw materials'}
+                        {isZeroEligible ? tariff?.zero_tariff_reason || 'Trade agreement applied' : `Current applied rate: ${appliedRate}%`}
                     </p>
                     <div className="mt-3 h-1.5 bg-green-500/20 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full" style={{ width: isZeroEligible ? '100%' : '0%' }}></div>
+                        <div className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full" style={{ width: isZeroEligible ? '100%' : `${Math.max(10, 100 - appliedRate * 5)}%` }}></div>
                     </div>
                 </div>
             </div>
