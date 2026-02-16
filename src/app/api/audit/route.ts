@@ -416,7 +416,7 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
                 trueTotalFob
             );
             data.global_guardian_report = guardianReport;
-            console.log(`[Guardian] ✅ Report generated. Risk Score: ${guardianReport.route_risk_score}/10 | Source: ${guardianReport.data_source}`);
+            console.log(`[Guardian] ✅ Report generated. Risk Score: ${guardianReport.route_risk_score}/10 | Status: ${guardianReport.analysis_status}`);
         } catch (guardianErr) {
             console.error('[Guardian] ⚠️ Report generation failed (non-blocking):', guardianErr);
             data.global_guardian_report = null;

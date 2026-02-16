@@ -1,165 +1,257 @@
 /**
- * Global Guardian Report Generator
- * Orchestrates You.com search → Gemini analysis → Structured Report
+ * Global Guardian Report Generator — v2: Search-First, Logic-Fallback
  * 
- * Produces: Route Risk Score, Tariff Optimization, Alternative Logistics,
- *           Supply Chain Disruptions, Cross-Sector Impact Analysis
+ * Architecture:
+ * 1. PRIMARY: Tavily Search API → live trade intelligence (tariffs, ports, agreements)
+ * 2. FALLBACK: Trade Strategist Engine → deterministic logic (19%/0% tariff rules)
+ * 3. ANALYSIS: Gemini → synthesizes live data + fallback into actionable report
+ * 
+ * Output: GlobalGuardianReport with Analysis Status, Predicted Delay,
+ *         Financial Impact, and Guardian Alert
  */
 
-import { gatherTradeIntelligence, TradeIntelligence } from './you-search';
+import { gatherLiveTradeIntelligence, LiveTradeIntelligence, TavilyResult } from './tavily-search';
+import { generateRiskOpportunityReport, IndustrySector, RiskOpportunityReport } from './trade-strategist';
 import { getOpenRouter } from './openrouter';
 
 // --- Types ---
 export interface GlobalGuardianReport {
+    // Header
+    report_id: string;
+    generated_at: string;
+    analysis_status: 'Live API Insights' | 'System Fallback Logic' | 'Hybrid (Live + Fallback)';
+
+    // Route Risk
     route_risk_score: number; // 1-10
     route_risk_label: string;
+
+    // Trade Policy (from live search)
     trade_policy: {
         current_tariff_rate: string;
         preferential_conditions: string;
         trade_agreements: string[];
+        source: string; // 'Tavily Live Search' or 'Guardian Fallback Logic'
     };
+
+    // Tariff Optimization
     tariff_optimization: {
         current_rate: string;
-        alternative_country: string;
-        alternative_rate: string;
-        potential_savings_pct: string;
+        zero_tariff_eligible: boolean;
+        zero_tariff_reason: string;
+        potential_savings_usd: number;
         recommendation: string;
     };
+
+    // Supply Chain Disruptions (from live search)
     supply_chain_disruptions: {
         logistics_alerts: string[];
         geopolitical_alerts: string[];
         environmental_alerts: string[];
+        port_status: string;
     };
+
+    // Lead Time Prediction
+    predicted_delay: {
+        base_days: number;
+        buffer_days: number;
+        total_range: string; // e.g. "35-42 days"
+        risk_buffer_reason: string;
+    };
+
+    // Financial Impact
+    financial_impact: {
+        fob_value_usd: number;
+        tax_liability_19pct: number;
+        potential_savings_0pct: number;
+        delay_penalty_usd: number;
+        total_risk_exposure_usd: number;
+        net_opportunity: string;
+    };
+
+    // Alternative Logistics
     alternative_logistics: {
         recommended_port: string;
         recommended_route: string;
         reason: string;
     };
-    cross_sector_impact: {
-        lead_time_buffer_days: number;
-        sector_sensitivity: string;
-        financial_risk_usd: number;
-        risk_description: string;
-    };
+
+    // Guardian Alert — single actionable sentence
+    guardian_alert: string;
+
+    // Live News
     live_news_summary: string[];
-    data_source: 'you_api_live' | 'ai_analysis_only';
+
+    // Intelligence Metadata
     intelligence_metadata: {
+        data_source: 'tavily_live' | 'system_fallback' | 'hybrid';
         queries_run: string[];
-        web_sources_found: number;
-        news_sources_found: number;
+        total_sources_found: number;
+        avg_response_time_sec: number;
         api_status: string;
+        tavily_answer: string | null;
     };
 }
 
 /**
- * Build a context string from You.com search results for Gemini
+ * Build context string from Tavily search results for Gemini analysis
  */
-function buildSearchContext(intel: TradeIntelligence): string {
+function buildTavilyContext(intel: LiveTradeIntelligence): string {
     let context = '';
 
-    if (intel.trade_policies.length > 0) {
-        context += '\n## TRADE POLICY SEARCH RESULTS:\n';
-        intel.trade_policies.slice(0, 8).forEach((r, i) => {
-            context += `[${i + 1}] "${r.title}" — ${r.description}\n`;
-            if (r.snippets?.length) {
-                context += `   Snippet: ${r.snippets[0].substring(0, 300)}\n`;
-            }
+    if (intel.tariff_data.length > 0) {
+        context += '\n## LIVE TARIFF DATA (Tavily Search — February 2026):\n';
+        intel.tariff_data.forEach((r, i) => {
+            context += `[${i + 1}] "${r.title}" (score: ${r.score.toFixed(2)})\n`;
+            context += `   ${r.content.substring(0, 400)}\n`;
+            context += `   Source: ${r.url}\n\n`;
         });
     }
 
-    if (intel.disruptions.length > 0) {
-        context += '\n## SUPPLY CHAIN DISRUPTION SEARCH RESULTS:\n';
-        intel.disruptions.slice(0, 6).forEach((r, i) => {
-            context += `[${i + 1}] "${r.title}" — ${r.description}\n`;
-            if (r.snippets?.length) {
-                context += `   Snippet: ${r.snippets[0].substring(0, 300)}\n`;
-            }
+    if (intel.port_disruptions.length > 0) {
+        context += '\n## LIVE PORT STATUS & DISRUPTIONS:\n';
+        intel.port_disruptions.forEach((r, i) => {
+            context += `[${i + 1}] "${r.title}" (score: ${r.score.toFixed(2)})\n`;
+            context += `   ${r.content.substring(0, 400)}\n\n`;
         });
     }
 
-    if (intel.news.length > 0) {
-        context += '\n## BREAKING NEWS:\n';
-        intel.news.slice(0, 5).forEach((n, i) => {
-            context += `[${i + 1}] "${n.title}" — ${n.description} (${n.page_age || 'recent'})\n`;
+    if (intel.trade_agreements.length > 0) {
+        context += '\n## TRADE AGREEMENTS & SPECIAL DEALS:\n';
+        intel.trade_agreements.forEach((r, i) => {
+            context += `[${i + 1}] "${r.title}" (score: ${r.score.toFixed(2)})\n`;
+            context += `   ${r.content.substring(0, 400)}\n\n`;
         });
     }
 
-    return context || '\n[No live data available — API returned empty results]\n';
+    if (intel.news_headlines.length > 0) {
+        context += '\n## BREAKING TRADE NEWS:\n';
+        intel.news_headlines.forEach((r, i) => {
+            context += `[${i + 1}] "${r.title}": ${r.content.substring(0, 200)}\n`;
+        });
+    }
+
+    return context || '\n[No live data available — using System Fallback Logic]\n';
 }
 
 /**
- * Main: Generate Global Guardian Report
+ * Generate Report ID
+ */
+function genId(): string {
+    return `GG-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+}
+
+/**
+ * Main: Generate Global Guardian Report (Search-First, Logic-Fallback)
  */
 export async function generateGlobalGuardianReport(
     originCountry: string,
     destinationCountry: string,
     sector: string,
-    fobValue: number
+    fobValue: number,
+    portOfLoading: string = 'Chittagong',
+    usesDestinationRawMaterials: boolean = false
 ): Promise<GlobalGuardianReport> {
-    // Step 1: Gather live intelligence from You.com
-    const intel = await gatherTradeIntelligence(originCountry, destinationCountry, sector);
-    const searchContext = buildSearchContext(intel);
-    const hasLiveData = intel.api_status !== 'fallback';
 
-    // Step 2: Send context + task to Gemini for structured analysis
-    const analysisPrompt = `
-You are the **Lead-Time Guardian Global Trade Strategist** — an expert in international trade, logistics, and supply chain risk management.
+    // ===== STEP 1: Live Search Execution (Primary) =====
+    console.log(`[Guardian] Step 1: Tavily live search for ${originCountry} → ${destinationCountry} (${sector})`);
+    const liveIntel = await gatherLiveTradeIntelligence(originCountry, destinationCountry, sector, portOfLoading);
+    const hasLiveData = liveIntel.api_status === 'live' || liveIntel.api_status === 'partial';
+    const tavilyContext = buildTavilyContext(liveIntel);
 
-You have been given LIVE SEARCH RESULTS from the internet (February 2026). Use them to produce a detailed, actionable report.
+    // ===== STEP 2: Fallback Logic (Always generate as safety net) =====
+    console.log(`[Guardian] Step 2: Generating fallback logic report...`);
+    const inferredSector: IndustrySector = (['Garments', 'Electronics', 'Perishables', 'Chemicals', 'Automotive'].includes(sector) ? sector : 'General') as IndustrySector;
 
-# INPUT DATA:
-- **Origin**: ${originCountry}
-- **Destination**: ${destinationCountry}
-- **Industry Sector**: ${sector}
-- **FOB Value**: $${fobValue.toLocaleString()}
-- **Date**: February 2026
+    const fallbackReport = generateRiskOpportunityReport({
+        origin_country: originCountry,
+        destination_country: destinationCountry,
+        port_of_loading: portOfLoading,
+        port_of_discharge: destinationCountry.toLowerCase().includes('us') ? 'Los Angeles' : 'Rotterdam',
+        sector: inferredSector,
+        fob_value_usd: fobValue,
+        uses_destination_raw_materials: usesDestinationRawMaterials,
+        shipment_mode: 'Sea',
+    });
 
-# LIVE INTELLIGENCE FROM YOU.COM API:
-${searchContext}
+    // ===== STEP 3: Gemini Synthesis — Merge live data + fallback =====
+    console.log(`[Guardian] Step 3: Gemini synthesis (live=${hasLiveData})...`);
+
+    const analysisStatus = hasLiveData ? 'Live API Insights' : 'System Fallback Logic';
+
+    const synthesisPrompt = `
+You are the **Lead-Time Guardian** — an AI Global Trade Strategist. 
+Date: February 2026.
+
+# ANALYSIS STATUS: ${analysisStatus}
+
+# ROUTE: ${originCountry} → ${destinationCountry}
+# SECTOR: ${sector}
+# FOB VALUE: $${fobValue.toLocaleString()}
+# PORT OF LOADING: ${portOfLoading}
+# USES DESTINATION RAW MATERIALS: ${usesDestinationRawMaterials ? 'YES (eligible for 0% tariff)' : 'NO (19% standard tariff applies)'}
+
+# LIVE SEARCH RESULTS FROM TAVILY API:
+${tavilyContext}
+
+# FALLBACK SYSTEM DATA:
+- Tariff Applied: ${fallbackReport.tariff_analysis.applied_tariff_pct}%
+- Lead Time: ${fallbackReport.predicted_lead_time}
+- Port Congestion: ${fallbackReport.primary_port_risk.congestion_index}%
+- Priority: ${fallbackReport.priority_classification}
 
 # YOUR TASK:
-Analyze the above search results and produce a JSON report with EXACTLY this structure:
+Synthesize the live search results with the fallback data. Produce a JSON report:
 
 {
-  "route_risk_score": <1-10 integer based on current conditions>,
+  "route_risk_score": <1-10>,
   "route_risk_label": "<Low Risk | Moderate Risk | High Risk | Critical Risk>",
   "trade_policy": {
-    "current_tariff_rate": "<e.g. '12.5%' or 'Duty-Free under GSP'>",
-    "preferential_conditions": "<describe any GSP, FTA, or bilateral deal>",
-    "trade_agreements": ["<list applicable agreements>"]
+    "current_tariff_rate": "<exact rate found in live data, or fallback 19%>",
+    "preferential_conditions": "<any GSP/FTA/bilateral deals found>",
+    "trade_agreements": ["<list of agreements>"]
   },
   "tariff_optimization": {
-    "current_rate": "<rate for this route>",
-    "alternative_country": "<country with lower tariff for same product>",
-    "alternative_rate": "<that country's rate>",
-    "potential_savings_pct": "<savings percentage>",
-    "recommendation": "<actionable recommendation>"
+    "current_rate": "<the actual rate>",
+    "zero_tariff_eligible": ${usesDestinationRawMaterials},
+    "zero_tariff_reason": "<explanation>",
+    "potential_savings_usd": <number>,
+    "recommendation": "<one actionable sentence>"
   },
   "supply_chain_disruptions": {
-    "logistics_alerts": ["<port strikes, fuel surcharges, lane closures>"],
-    "geopolitical_alerts": ["<sanctions, embargoes, policy changes in last 24h>"],
-    "environmental_alerts": ["<extreme weather affecting transit hubs>"]
+    "logistics_alerts": ["<from live search>"],
+    "geopolitical_alerts": ["<from live search>"],
+    "environmental_alerts": ["<from live search>"],
+    "port_status": "<current status of ${portOfLoading}>"
+  },
+  "predicted_delay": {
+    "base_days": <number>,
+    "buffer_days": 15,
+    "total_range": "<e.g. 35-42 days>",
+    "risk_buffer_reason": "<why 15-day buffer is applied>"
+  },
+  "financial_impact": {
+    "fob_value_usd": ${fobValue},
+    "tax_liability_19pct": ${Number((fobValue * 0.19).toFixed(2))},
+    "potential_savings_0pct": ${Number((fobValue * 0.19).toFixed(2))},
+    "delay_penalty_usd": <estimated from port data>,
+    "total_risk_exposure_usd": <sum of all risks>,
+    "net_opportunity": "<savings vs costs summary>"
   },
   "alternative_logistics": {
-    "recommended_port": "<safer port if current is high-risk>",
-    "recommended_route": "<alternative shipping route>",
-    "reason": "<why this is better>"
+    "recommended_port": "<safer port>",
+    "recommended_route": "<alternative route>",
+    "reason": "<why>"
   },
-  "cross_sector_impact": {
-    "lead_time_buffer_days": <integer, higher for perishables>,
-    "sector_sensitivity": "<High | Medium | Low>",
-    "financial_risk_usd": <number — potential loss if delay causes duty/surcharge breach>,
-    "risk_description": "<explain the financial risk>"
-  },
-  "live_news_summary": ["<top 3-5 relevant news headlines with impact>"]
+  "guardian_alert": "<ONE sentence actionable advice, e.g. 'Switch to US Cotton sourcing to save 19% immediately'>",
+  "live_news_summary": ["<top 3-5 headlines with impact>"]
 }
 
 RULES:
-- Base ALL analysis on the search results provided. Do not fabricate data.
-- If search results are empty, use your expert knowledge but clearly note it.
-- route_risk_score: 1-3 = Low, 4-6 = Moderate, 7-8 = High, 9-10 = Critical.
-- financial_risk_usd should be calculated relative to the FOB value ($${fobValue}).
-- Return ONLY valid JSON, no markdown.
+- If live data has specific tariff rates, USE THEM (not the 19% default).
+- If live data is missing, clearly state "Based on System Fallback Logic".
+- guardian_alert must be ONE SENTENCE, specific, and actionable.
+- financial_impact numbers must be precise to 2 decimal places.
+- Return ONLY valid JSON.
 `;
 
     try {
@@ -167,7 +259,7 @@ RULES:
             model: 'google/gemini-3-flash-preview',
             messages: [
                 { role: 'system', content: 'You are a global trade risk analyst. Return ONLY valid JSON.' },
-                { role: 'user', content: analysisPrompt },
+                { role: 'user', content: synthesisPrompt },
             ],
             response_format: { type: 'json_object' },
         });
@@ -176,87 +268,144 @@ RULES:
         rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
         const analysis = JSON.parse(rawContent);
 
-        return {
-            route_risk_score: analysis.route_risk_score || 5,
-            route_risk_label: analysis.route_risk_label || 'Moderate Risk',
-            trade_policy: analysis.trade_policy || {
-                current_tariff_rate: 'Unknown',
-                preferential_conditions: 'None identified',
-                trade_agreements: [],
+        // Merge Gemini analysis with metadata
+        const report: GlobalGuardianReport = {
+            report_id: genId(),
+            generated_at: new Date().toISOString(),
+            analysis_status: hasLiveData
+                ? (liveIntel.api_status === 'partial' ? 'Hybrid (Live + Fallback)' : 'Live API Insights')
+                : 'System Fallback Logic',
+
+            route_risk_score: analysis.route_risk_score || fallbackReport.primary_port_risk.congestion_index > 60 ? 7 : 5,
+            route_risk_label: analysis.route_risk_label || fallbackReport.primary_port_risk.risk_level + ' Risk',
+
+            trade_policy: {
+                current_tariff_rate: analysis.trade_policy?.current_tariff_rate || `${fallbackReport.tariff_analysis.applied_tariff_pct}%`,
+                preferential_conditions: analysis.trade_policy?.preferential_conditions || fallbackReport.tariff_analysis.zero_tariff_reason,
+                trade_agreements: analysis.trade_policy?.trade_agreements || [],
+                source: hasLiveData ? 'Tavily Live Search' : 'Guardian Fallback Logic',
             },
-            tariff_optimization: analysis.tariff_optimization || {
-                current_rate: 'Unknown',
-                alternative_country: 'None',
-                alternative_rate: 'N/A',
-                potential_savings_pct: '0%',
-                recommendation: 'Insufficient data for optimization.',
+
+            tariff_optimization: {
+                current_rate: analysis.tariff_optimization?.current_rate || `${fallbackReport.tariff_analysis.applied_tariff_pct}%`,
+                zero_tariff_eligible: usesDestinationRawMaterials,
+                zero_tariff_reason: analysis.tariff_optimization?.zero_tariff_reason || fallbackReport.tariff_analysis.zero_tariff_reason,
+                potential_savings_usd: analysis.tariff_optimization?.potential_savings_usd || fallbackReport.tariff_analysis.tariff_savings_usd,
+                recommendation: analysis.tariff_optimization?.recommendation || fallbackReport.strategic_advice[0] || 'Review tariff eligibility.',
             },
+
             supply_chain_disruptions: analysis.supply_chain_disruptions || {
-                logistics_alerts: [],
+                logistics_alerts: fallbackReport.strategic_advice.filter(a => a.includes('PORT')),
                 geopolitical_alerts: [],
                 environmental_alerts: [],
+                port_status: `${portOfLoading}: ${fallbackReport.primary_port_risk.congestion_index}% congestion`,
             },
+
+            predicted_delay: {
+                base_days: analysis.predicted_delay?.base_days || fallbackReport.primary_port_risk.base_lead_time_days,
+                buffer_days: 15, // Mandatory 15-day buffer for 2026 volatility
+                total_range: analysis.predicted_delay?.total_range || fallbackReport.predicted_lead_time,
+                risk_buffer_reason: analysis.predicted_delay?.risk_buffer_reason || '15-day mandatory buffer for 2026 global logistics volatility — port congestion, weather, geopolitical risks.',
+            },
+
+            financial_impact: {
+                fob_value_usd: fobValue,
+                tax_liability_19pct: Number((fobValue * 0.19).toFixed(2)),
+                potential_savings_0pct: Number((fobValue * 0.19).toFixed(2)),
+                delay_penalty_usd: analysis.financial_impact?.delay_penalty_usd || fallbackReport.financial_impact.delay_penalty_usd,
+                total_risk_exposure_usd: analysis.financial_impact?.total_risk_exposure_usd || fallbackReport.financial_impact.total_risk_exposure_usd,
+                net_opportunity: analysis.financial_impact?.net_opportunity || `$${fallbackReport.financial_impact.net_opportunity_usd.toLocaleString()} potential`,
+            },
+
             alternative_logistics: analysis.alternative_logistics || {
-                recommended_port: 'N/A',
-                recommended_route: 'N/A',
-                reason: 'No high-risk flags detected.',
+                recommended_port: fallbackReport.alternative_routes[0]?.port_name || 'Singapore',
+                recommended_route: `Via ${fallbackReport.alternative_routes[0]?.port_name || 'Singapore'}`,
+                reason: fallbackReport.alternative_routes[0]?.recommendation || 'Diversify port risk.',
             },
-            cross_sector_impact: analysis.cross_sector_impact || {
-                lead_time_buffer_days: 3,
-                sector_sensitivity: 'Medium',
-                financial_risk_usd: 0,
-                risk_description: 'No significant risk detected.',
-            },
+
+            guardian_alert: analysis.guardian_alert || (
+                usesDestinationRawMaterials
+                    ? `Zero-Tariff is active — saving $${(fobValue * 0.19).toFixed(2)} on this shipment. Monitor ${portOfLoading} for delays to maintain eligibility.`
+                    : `Switch to ${destinationCountry}-origin raw materials to save 19% ($${(fobValue * 0.19).toFixed(2)}) immediately.`
+            ),
+
             live_news_summary: analysis.live_news_summary || [],
-            data_source: hasLiveData ? 'you_api_live' : 'ai_analysis_only',
+
             intelligence_metadata: {
-                queries_run: intel.raw_queries,
-                web_sources_found: intel.trade_policies.length + intel.disruptions.length,
-                news_sources_found: intel.news.length,
-                api_status: intel.api_status,
+                data_source: hasLiveData ? 'tavily_live' : 'system_fallback',
+                queries_run: liveIntel.raw_queries,
+                total_sources_found: liveIntel.tariff_data.length + liveIntel.port_disruptions.length +
+                    liveIntel.trade_agreements.length + liveIntel.news_headlines.length,
+                avg_response_time_sec: liveIntel.response_times.length > 0
+                    ? Number((liveIntel.response_times.reduce((a, b) => a + b, 0) / liveIntel.response_times.length).toFixed(2))
+                    : 0,
+                api_status: liveIntel.api_status,
+                tavily_answer: null, // Will be populated from Tavily's built-in answer
             },
         };
+
+        console.log(`[Guardian] ✅ Report complete. Status: ${report.analysis_status} | Risk: ${report.route_risk_score}/10`);
+        return report;
+
     } catch (error) {
-        console.error('[GlobalGuardian] Gemini analysis failed:', error);
-        // Return a safe fallback report
+        console.error('[Guardian] Gemini synthesis failed, returning fallback-only report:', error);
+
+        // Pure fallback report without Gemini
         return {
-            route_risk_score: 5,
-            route_risk_label: 'Moderate Risk (Analysis Unavailable)',
+            report_id: genId(),
+            generated_at: new Date().toISOString(),
+            analysis_status: 'System Fallback Logic',
+            route_risk_score: fallbackReport.primary_port_risk.congestion_index > 60 ? 7 : 5,
+            route_risk_label: fallbackReport.primary_port_risk.risk_level + ' Risk',
             trade_policy: {
-                current_tariff_rate: 'Unknown',
-                preferential_conditions: 'Analysis failed — retry required',
+                current_tariff_rate: `${fallbackReport.tariff_analysis.applied_tariff_pct}%`,
+                preferential_conditions: fallbackReport.tariff_analysis.zero_tariff_reason,
                 trade_agreements: [],
+                source: 'Guardian Fallback Logic',
             },
             tariff_optimization: {
-                current_rate: 'Unknown',
-                alternative_country: 'N/A',
-                alternative_rate: 'N/A',
-                potential_savings_pct: '0%',
-                recommendation: 'Analysis unavailable. Please retry.',
+                current_rate: `${fallbackReport.tariff_analysis.applied_tariff_pct}%`,
+                zero_tariff_eligible: usesDestinationRawMaterials,
+                zero_tariff_reason: fallbackReport.tariff_analysis.zero_tariff_reason,
+                potential_savings_usd: fallbackReport.tariff_analysis.tariff_savings_usd,
+                recommendation: fallbackReport.strategic_advice[0] || 'Review tariff eligibility.',
             },
             supply_chain_disruptions: {
-                logistics_alerts: ['Analysis service temporarily unavailable'],
+                logistics_alerts: fallbackReport.strategic_advice.filter(a => a.includes('PORT')),
                 geopolitical_alerts: [],
                 environmental_alerts: [],
+                port_status: `${portOfLoading}: ${fallbackReport.primary_port_risk.congestion_index}% congestion`,
+            },
+            predicted_delay: {
+                base_days: fallbackReport.primary_port_risk.base_lead_time_days,
+                buffer_days: 15,
+                total_range: fallbackReport.predicted_lead_time,
+                risk_buffer_reason: '15-day mandatory buffer for 2026 global logistics volatility.',
+            },
+            financial_impact: {
+                fob_value_usd: fobValue,
+                tax_liability_19pct: Number((fobValue * 0.19).toFixed(2)),
+                potential_savings_0pct: Number((fobValue * 0.19).toFixed(2)),
+                delay_penalty_usd: fallbackReport.financial_impact.delay_penalty_usd,
+                total_risk_exposure_usd: fallbackReport.financial_impact.total_risk_exposure_usd,
+                net_opportunity: `$${fallbackReport.financial_impact.net_opportunity_usd.toLocaleString()} potential`,
             },
             alternative_logistics: {
-                recommended_port: 'N/A',
-                recommended_route: 'N/A',
-                reason: 'Fallback mode — no live data.',
+                recommended_port: fallbackReport.alternative_routes[0]?.port_name || 'Singapore',
+                recommended_route: `Via ${fallbackReport.alternative_routes[0]?.port_name || 'Singapore'}`,
+                reason: fallbackReport.alternative_routes[0]?.recommendation || 'Diversify port risk.',
             },
-            cross_sector_impact: {
-                lead_time_buffer_days: 5,
-                sector_sensitivity: 'Medium',
-                financial_risk_usd: 0,
-                risk_description: 'Unable to calculate — analysis service unavailable.',
-            },
+            guardian_alert: usesDestinationRawMaterials
+                ? `Zero-Tariff active — $${(fobValue * 0.19).toFixed(2)} saved. Monitor ${portOfLoading} delays.`
+                : `Switch to ${destinationCountry}-origin raw materials to save 19% ($${(fobValue * 0.19).toFixed(2)}) immediately.`,
             live_news_summary: [],
-            data_source: 'ai_analysis_only',
             intelligence_metadata: {
-                queries_run: intel.raw_queries,
-                web_sources_found: 0,
-                news_sources_found: 0,
+                data_source: 'system_fallback',
+                queries_run: liveIntel.raw_queries,
+                total_sources_found: 0,
+                avg_response_time_sec: 0,
                 api_status: 'fallback',
+                tavily_answer: null,
             },
         };
     }
