@@ -128,7 +128,7 @@ export const generateCFOReport = (data: PDFData) => {
             ['Math Integrity', declaredVsCalc, mathStatus],
             ['REX Compliance', '> €6,000 Rule', data.rexStatus || 'N/A'],
             ['Cash Incentive', 'FOB * 8% (Ref: FE-2025)', `$${data.mathIntegrity.incentive.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-            ['Revenue Risk', 'AV * 11.9% (LDC Grading)', `$${data.mathIntegrity.revenueRisk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+            ['Revenue Risk', 'FOB * 19% (Reciprocal Tariff)', `$${data.mathIntegrity.revenueRisk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
         ],
         theme: 'grid',
         styles: {
@@ -286,9 +286,9 @@ export const generateCFOReport = (data: PDFData) => {
     currentY += 25; // Spacing after section
 
 
-    // 2026 Graduation Risk: Use 2-decimal formatting strictly
+    // 2026 Reciprocal Tariff Risk: Use 2-decimal formatting strictly
     // Formula: (FOB * 1.01) * 1.01
-    // 2026 Graduation Risk: AV * 11.9%
+    // 2026 Reciprocal Tariff: FOB * 19%
     // Note: We use the EXACT same string mapping 
     doc.text(`- **Assessable Value (AV)**: $${data.mathIntegrity.av.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, margin, currentY + 10); // Simulated text placement matching prompt request
     // This part of the file generates the 'Strategic Audit Report' text block in the JSON, but here strictly formatting the table.
@@ -395,7 +395,7 @@ export const generateAuditPDF = (auditData: AuditPDFData) => {
         body: [
             ['FOB Value', 'Declared in Invoice', `$${auditData.fob_value || '10,000.00'}`],
             ['Assessable Value (AV)', '(FOB * 1.01) * 1.01', `$${auditData.av_value || '10,201.00'}`],
-            ['2026 Revenue Risk', 'AV * 11.9% (LDC Graduation)', `-$${auditData.risk_value || '1,213.92'}`],
+            ['2026 Revenue Risk', 'FOB * 19% (Reciprocal Tariff)', `-$${auditData.risk_value || '1,938.19'}`],
             ['Export Incentives', '14.00% (Cash + Drawback)', `+$${auditData.benefit_value || '1,400.00'}`],
         ],
         theme: 'striped',

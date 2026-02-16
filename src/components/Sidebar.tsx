@@ -45,7 +45,7 @@ export function Sidebar() {
             <div className="p-4 border-t border-white/10">
                 <div className="p-4 bg-green-500/10 rounded-lg border border-green-500/20">
                     <p className="text-xs text-green-400 font-bold">✓ 2026 Rates Active</p>
-                    <p className="text-xs text-gray-300 mt-1">11.9% MFN Duty Applied</p>
+                    <p className="text-xs text-gray-300 mt-1">19% Reciprocal Tariff</p>
                 </div>
             </div>
         </div>

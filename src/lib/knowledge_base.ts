@@ -41,8 +41,8 @@ export const KNOWLEDGE_BASE = {
         },
         "regulatory_audit_rules": {
             "FOB_Calculation": "Assessable Value = (FOB * 1.01 Insurance * 1.01 Freight)",
-            "LDC_Graduation_2026": {
-                "EU_UK_Risk": "11.9% MFN Duty",
+            "Reciprocal_Tariff_2026": {
+                "EU_UK_Risk": "19% Reciprocal Tariff",
                 "CBAM_Risk": "Carbon tax on industrial exports (Iron, Steel, Cement)"
             },
             "Incentives": "Cash Assistance (4% - 8%) depending on HS Code & destination"

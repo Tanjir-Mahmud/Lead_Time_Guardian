@@ -1,5 +1,5 @@
 /**
- * Trade Strategist Engine v2 — GLOBAL Multi-Sector Intelligence
+ * Trade Strategist Engine v3 — GLOBAL Multi-Sector Intelligence
  * 
  * NOT limited to any specific country or industry.
  * Supports ANY origin → destination pair across ALL sectors.
@@ -12,7 +12,11 @@
  * 5. Financial Impact Calculator — Standard vs Optimized cost
  * 6. Alternative Routing — global port alternatives
  * 7. Weather/Disruption Buffer — dynamic lead-time adjustments
+ * 8. First-Mile Logistics — city-to-port transit with infrastructure buffers
+ * 9. Winning Move — one actionable sentence for maximum savings
  */
+
+import { calculateFirstMile, suggestBestMode, type FirstMileResult, type ModeRecommendation } from './first-mile';
 
 // ============================================================
 // TYPES
@@ -26,6 +30,8 @@ export type IndustrySector =
 export interface ShipmentInput {
     origin_country: string;
     destination_country: string;
+    origin_city?: string;
+    destination_city?: string;
     port_of_loading: string;
     port_of_discharge: string;
     sector: IndustrySector;
@@ -106,6 +112,15 @@ export interface RiskOpportunityReport {
         recommendation: string;
         potential_saving_days: number;
     }>;
+
+    // First-Mile Logistics (city → port)
+    first_mile?: FirstMileResult;
+
+    // Mode Recommendation
+    mode_recommendation?: ModeRecommendation;
+
+    // Winning Move — ONE actionable sentence
+    winning_move: string;
 }
 
 // ============================================================
@@ -487,6 +502,16 @@ function getBaseLeadTime(loadingPort: string, dischargePort: string, mode: strin
 export function generateRiskOpportunityReport(input: ShipmentInput): RiskOpportunityReport {
     const reportId = `RO-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
 
+    // --- First-Mile Logistics ---
+    const firstMile = input.origin_city
+        ? calculateFirstMile(input.origin_city, input.shipment_mode === 'Air' ? 'Air' : input.shipment_mode === 'Rail' ? 'Rail' : 'Road')
+        : undefined;
+
+    // --- Mode Recommendation ---
+    const modeRec = input.origin_city
+        ? suggestBestMode(input.origin_city, input.sector, 40, input.fob_value_usd)
+        : undefined;
+
     // --- Tariff Analysis ---
     const tariffInfo = getTariffRate(input.origin_country, input.destination_country, input.live_tariff_rate);
     let appliedRate = tariffInfo.rate;
@@ -516,8 +541,10 @@ export function generateRiskOpportunityReport(input: ShipmentInput): RiskOpportu
     const sectorBuffer = Math.round(baseLeadTime * (sectorProfile.lead_time_buffer_pct / 100));
     const weatherBuffer = Math.round(baseLeadTime * 0.05); // 5% default weather buffer
 
-    const minLeadTime = baseLeadTime + congestionBuffer;
-    const maxLeadTime = baseLeadTime + congestionBuffer + sectorBuffer + weatherBuffer;
+    // Include first-mile hours converted to days
+    const firstMileDays = firstMile ? Math.round(firstMile.total_first_mile_hours / 24) : 0;
+    const minLeadTime = baseLeadTime + congestionBuffer + firstMileDays;
+    const maxLeadTime = baseLeadTime + congestionBuffer + sectorBuffer + weatherBuffer + firstMileDays;
     const predictedLeadTime = `${minLeadTime}-${maxLeadTime} days`;
 
     // --- Financial Impact ---
@@ -577,6 +604,33 @@ export function generateRiskOpportunityReport(input: ShipmentInput): RiskOpportu
         };
     });
 
+    // Generate a Winning Move (One Actionable Sentence)
+    let winningMove = "";
+    const isEU = input.destination_country.toLowerCase().includes('eu') ||
+        input.destination_country.toLowerCase().includes('germany') ||
+        input.destination_country.toLowerCase().includes('sweden') ||
+        input.destination_country.toLowerCase().includes('france') ||
+        input.destination_country.toLowerCase().includes('netherlands');
+
+    if (zeroEligible) { // Changed from tariffAnalysis.zero_tariff_eligible to zeroEligible
+        if (isEU) {
+            winningMove = `Leverage ${zeroReason} (EU-GSP+ / EBA) eligibility to maintain 0.00% duty on this $${input.fob_value_usd.toLocaleString()} shipment.`; // Changed from tariffAnalysis.zero_tariff_reason to zeroReason
+        } else {
+            winningMove = `Leverage ${zeroReason} eligibility to maintain 0.00% duty on this $${input.fob_value_usd.toLocaleString()} shipment.`; // Changed from tariffAnalysis.zero_tariff_reason to zeroReason
+        }
+    } else if (appliedRate > 10) { // Changed from tariffAnalysis.applied_tariff_pct to appliedRate
+        winningMove = `High tariff of ${appliedRate}% detected. Explore sourcing raw materials from ${input.destination_country} to potentially reduce tariff — save $${tariffSavings.toLocaleString(undefined, { minimumFractionDigits: 2 })} per shipment.`;
+    } else if (loadingPort.congestion_index > 55 && alternatives.length > 0) {
+        const bestAlt = alternatives[0];
+        winningMove = `Reroute via ${bestAlt.port_name} to avoid ${loadingPort.congestion_index}% congestion at ${input.port_of_loading} — save ${bestAlt.potential_saving_days}+ days.`;
+    } else if (modeRec && modeRec.recommended_mode !== input.shipment_mode) {
+        winningMove = `Switch from ${input.shipment_mode} to ${modeRec.recommended_mode}: ${modeRec.reason}`;
+    } else if (zeroEligible) {
+        winningMove = `Zero-tariff active via ${tariffInfo.agreements[0] || 'destination-sourcing'} — $${tariffSavings.toLocaleString(undefined, { minimumFractionDigits: 2 })} saved. Ensure compliance docs are ready.`;
+    } else {
+        winningMove = `Optimize ${input.origin_country} → ${input.destination_country}: Current tariff ${appliedRate}% ($${tariffCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}). Explore bilateral trade agreements for reduction.`;
+    }
+
     return {
         report_id: reportId,
         generated_at: new Date().toISOString(),
@@ -621,5 +675,8 @@ export function generateRiskOpportunityReport(input: ShipmentInput): RiskOpportu
         sector_warnings: sectorWarnings,
         strategic_advice: advice,
         alternative_routes: alternatives,
+        first_mile: firstMile,
+        mode_recommendation: modeRec,
+        winning_move: winningMove,
     };
 }

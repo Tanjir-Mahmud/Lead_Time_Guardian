@@ -95,7 +95,10 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
       - Formula: (FOB * 1.01) * 1.01. This is non-negotiable.
     - STEP 2 (INCENTIVE): Use the LIVE 'incentive_rate' provided here: ${incPct}.
       - Apply this rate if it matches the product description (e.g. Synthetic Footwear).
-    - STEP 3 (LDC RISK): Use the LIVE 'ldc_risk_rate' provided here: ${ldcPct}.
+    - STEP 3 (TARIFF RISK): Use the LIVE 'reciprocal_tariff_rate' provided here: ${ldcPct}. 
+    - OPTIMIZATION: If rules of origin for 'US Cotton' are mentioned, the duty status is 0%.
+    - If no preferential logic is found, the standard duty is ${ldcPct}.
+      - This represents the 2026 Reciprocal Tariff rate (19% standard, 0% with optimization).
       - Formula: AV * (Rate).
 
     # 3. STRATEGIC COMPLIANCE (RULE-BASED)
@@ -136,7 +139,7 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
     **RULE #2 - NO ZERO VALUES:** The following fields MUST NEVER be 0 or "unknown":
     - lead_time_days: ALWAYS calculate from tier mapping (minimum: 5 days)
     - shipment_status: ALWAYS set based on tier deadline comparison
-    - safety_margin: ALWAYS calculate as (14% benefits - 11.9% risk = 2.1% base)
+    - safety_margin: ALWAYS calculate as (14% benefits - 19% reciprocal tariff = -5% standard, or +14% with 0% optimized tariff)
     
     **RULE #3 - ASSERTIVE DEFAULTS:** If destination is unclear, use Tier 2 (Southeast Asia, 15 days) as default.
     
@@ -219,13 +222,15 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
     
     **FORMULA:**
     - Total Benefits: 8% (Cash Incentive) + 6% (Duty Drawback) = **+14%**
-    - 2026 LDC Risk: **-11.9%** (MFN duty if shipping to EU/UK)
-    - Net Safety Margin = 14% - 11.9% = **+2.1%** (base)
+    - 2026 Reciprocal Tariff: **-19%** (Standard duty rate)
+    - 2026 Optimized Tariff: **0%** (Destination-sourcing / Trade Agreement)
+    - Net Safety Margin (Standard) = 14% - 19% = **-5%** (OPTIMIZE REQUIRED)
+    - Net Safety Margin (Optimized) = 14% - 0% = **+14%** (SAFE)
     
-    **For EU/UK destinations:** Net Safety Margin = 2.1% (positive = SAFE)
-    **For non-EU destinations:** Net Safety Margin = 14% (no LDC risk)
+    **For standard routes:** Net Safety Margin = -5% (optimize via destination-sourcing)
+    **For optimized routes:** Net Safety Margin = +14% (0% tariff applied)
     
-    **OUTPUT:** Always include: "Net Margin: +2.1% (Safe to Ship)" or similar
+    **OUTPUT:** Always include: "Standard Margin: -5% (Optimize Required)" or "Optimized Margin: +14% (Safe)"
     
     
     # 5. OUTPUT FORMAT (STRICT JSON)
@@ -259,9 +264,9 @@ export async function runComplianceSwarm(fileBase64: string, mimeType: string, c
         "strategic_analysis": {
             "eu_rules_of_origin_status": "Compliant" | "Non-Compliant" | "Needs Verification",
             "rex_validation": "Valid" | "Missing" | "Not Required",
-            "ldc_graduation_impact": {
+            "reciprocal_tariff_impact": {
                 "impact_percentage": "${ldcPct}",
-                "estimated_extra_cost": number
+                "note": "Bilateral Reciprocal Tariff (2026)"
             },
             "cbam_risk": "High" | "Medium" | "Low",
             "export_incentive_opportunity": {

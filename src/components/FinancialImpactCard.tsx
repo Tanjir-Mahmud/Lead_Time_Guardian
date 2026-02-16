@@ -62,12 +62,12 @@ export function FinancialImpactCard({ report, guardianReport }: FinancialImpactP
     const tariff = report.tariff_analysis;
     const financial = report.financial_impact;
     const fobValue = financial?.fob_value_usd || 0;
-    const baselineRate = tariff?.baseline_tariff_pct ?? 7;
-    const appliedRate = tariff?.applied_tariff_pct ?? baselineRate;
-    const standardCost = financial?.standard_cost_usd ?? Number((fobValue * (baselineRate / 100)).toFixed(2));
-    const optimizedCost = financial?.optimized_cost_usd ?? Number((fobValue * (appliedRate / 100)).toFixed(2));
-    const savings = standardCost - optimizedCost;
     const isZeroEligible = tariff?.zero_tariff_eligible || false;
+    const baselineRate = 19;
+    const appliedRate = isZeroEligible ? 0 : 19;
+    const standardCost = Number((fobValue * (baselineRate / 100)).toFixed(2));
+    const optimizedCost = Number((fobValue * (appliedRate / 100)).toFixed(2));
+    const savings = standardCost - optimizedCost;
     const leadTime = report.predicted_lead_time || '—';
     const priority = report.priority_classification || 'Standard';
     const tradeAgreements = tariff?.trade_agreements || [];
@@ -119,7 +119,7 @@ export function FinancialImpactCard({ report, guardianReport }: FinancialImpactP
                     <div className="absolute top-0 right-0 w-16 h-16 bg-red-500/5 rounded-bl-full"></div>
                     <div className="flex items-center gap-2 mb-3">
                         <TrendingDown className="text-red-400" size={16} />
-                        <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Standard Cost ({baselineRate}%)</span>
+                        <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Standard Cost (19.00%)</span>
                     </div>
                     <p className="text-3xl font-bold text-red-400 font-mono">
                         ${standardCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -131,15 +131,15 @@ export function FinancialImpactCard({ report, guardianReport }: FinancialImpactP
                 </div>
 
                 {/* Optimized Cost Scenario */}
-                <div className={`${isZeroEligible ? 'bg-green-500/10 border-green-500/30' : 'bg-green-500/5 border-green-500/20'} border rounded-xl p-4 relative overflow-hidden`}>
+                <div className={`${isZeroEligible ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/5 border-red-500/20'} border rounded-xl p-4 relative overflow-hidden`}>
                     <div className="absolute top-0 right-0 w-16 h-16 bg-green-500/5 rounded-bl-full"></div>
                     <div className="flex items-center gap-2 mb-3">
-                        <Shield className={isZeroEligible ? "text-green-400" : "text-green-400/50"} size={16} />
-                        <span className={`${isZeroEligible ? 'text-green-400' : 'text-green-400/50'} text-xs font-bold uppercase tracking-wider`}>
-                            Optimized ({appliedRate}%)
+                        <Shield className={isZeroEligible ? "text-green-400" : "text-red-400/50"} size={16} />
+                        <span className={`${isZeroEligible ? 'text-green-400' : 'text-red-400/50'} text-xs font-bold uppercase tracking-wider`}>
+                            Optimized (0.00%)
                         </span>
                         {isZeroEligible && (
-                            <span className="text-[9px] bg-green-500/20 px-1.5 py-0.5 rounded text-green-300 border border-green-500/30">ACTIVE</span>
+                            <span className="text-[9px] bg-green-500/20 px-1.5 py-0.5 rounded text-green-300 border border-green-500/30">US COTTON ACTIVE</span>
                         )}
                     </div>
                     <p className={`text-3xl font-bold font-mono ${isZeroEligible ? 'text-green-400' : 'text-green-400/50'}`}>
@@ -159,7 +159,7 @@ export function FinancialImpactCard({ report, guardianReport }: FinancialImpactP
                 <div className="flex items-center gap-2">
                     <Zap className="text-green-400" size={16} />
                     <span className="text-sm text-green-300 font-medium">
-                        {isZeroEligible ? 'You ARE saving' : 'Potential savings'}
+                        {isZeroEligible ? 'Bilateral Trade Optimization Savings' : 'Potential Bilateral Savings'}
                     </span>
                 </div>
                 <span className="text-xl font-bold text-green-400 font-mono">

@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { Upload, CheckCircle, AlertTriangle, Loader2, ShieldAlert, Shield } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 import { startTransition } from 'react';
@@ -234,12 +234,15 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                         <div className="rounded-xl overflow-hidden">
                             <GlobalRouteMap
                                 originCountry={result.metadata?.origin || 'Bangladesh'}
+                                originCity={result.global_guardian_report?.first_mile?.origin_city || result.risk_opportunity_report?.first_mile?.origin_city}
                                 destinationCountry={result.metadata?.destination || 'USA'}
                                 portOfLoading={result.risk_opportunity_report?.primary_port_risk?.port_name || 'Chittagong'}
                                 portOfDischarge={result.risk_opportunity_report?.alternative_routes?.[0]?.port_name || 'Los Angeles'}
                                 congestionIndex={result.risk_opportunity_report?.primary_port_risk?.congestion_index || 0}
                                 riskLevel={result.risk_opportunity_report?.primary_port_risk?.risk_level || 'Low'}
                                 leadTime={result.risk_opportunity_report?.predicted_lead_time}
+                                winningMove={result.global_guardian_report?.winning_move || result.risk_opportunity_report?.winning_move}
+                                firstMileHours={result.global_guardian_report?.first_mile?.total_first_mile_hours || result.risk_opportunity_report?.first_mile?.total_first_mile_hours}
                             />
                         </div>
                     )}
@@ -318,9 +321,9 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                             <span className="text-white font-bold text-right">${result.metadata?.total_invoice_value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-gray-700 pb-1 mb-1">
-                                            <span className="text-gray-400">AV Calculation (Customs Act 23)</span>
+                                            <span className="text-gray-400">AV Calculation (FOB + 1% Freight + 1% Ins + 1% Landing)</span>
                                             <span className="text-white font-bold text-right">
-                                                (FOB * 1.01) * 1.01 = <span className="text-gold">${result.cfo_strategic_report.tax_summary?.total_assessable_value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                FOB * 1.01 * 1.01 * 1.01 = <span className="text-gold">${result.cfo_strategic_report.tax_summary?.total_assessable_value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                             </span>
                                         </div>
                                         <div className="flex justify-between border-b border-gray-700 pb-1 mb-1">
@@ -330,9 +333,9 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-gray-400">2026 Revenue Risk (STS Chapter 2)</span>
+                                            <span className="text-gray-400">2026 Revenue Risk (Reciprocal 19%)</span>
                                             <span className="text-red-400 font-bold text-right">
-                                                AV * 0.119 = ${result.cfo_strategic_report.tax_summary?.total_revenue_risk?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                AV * 0.19 = ${result.cfo_strategic_report.tax_summary?.total_revenue_risk?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </div>
@@ -413,14 +416,25 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                         </div>
 
                                         <div className="p-4 bg-orange-900/10 border border-orange-500/20 rounded-lg text-center">
-                                            <h5 className="text-orange-500 text-xs font-bold uppercase mb-2">LDC Graduation Risk</h5>
-                                            <div className="flex items-center justify-center gap-2">
-                                                <span className="text-4xl font-black text-orange-400 text-center">
-                                                    {result.cfo_strategic_report.profit_protection?.ldc_graduation_risk_score || 0}
-                                                </span>
-                                                <span className="text-xs text-orange-300 left-0">/ 10</span>
+                                            <h5 className="text-orange-500 text-xs font-bold uppercase mb-2">Tariff Policy Status</h5>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-[10px] text-gray-500 uppercase tracking-tighter">Bilateral Tariff Score</span>
+                                                {(result.cfo_strategic_report.profit_protection?.ldc_graduation_risk_score || 0) <= 3 ? (
+                                                    <span className="text-[10px] bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded border border-green-500/20">LOW RISK</span>
+                                                ) : (
+                                                    <span className="text-[10px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 animate-pulse">HIGH RISK</span>
+                                                )}
                                             </div>
-                                            <p className="text-[10px] text-gray-500 mt-1">Impact Score</p>
+                                            {(result.cfo_strategic_report.profit_protection?.ldc_graduation_risk_score || 0) <= 3 ? (
+                                                <div className="py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded flex items-center justify-center gap-2 text-xs font-bold">
+                                                    ✅ Preferential Logic Applied: 0% Duty
+                                                </div>
+                                            ) : (
+                                                <div className="py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded flex items-center justify-center gap-2 text-xs font-bold">
+                                                    ⚠️ 19% Reciprocal Tariff Active
+                                                </div>
+                                            )}
+                                            <p className="text-[10px] text-gray-500 mt-2">2026 Trade Policy</p>
                                         </div>
 
                                         {/* CBAM Alert */}
@@ -449,13 +463,17 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
 
                     {/* Sum Check Alert - Only show if we actually extracted value */}
                     {result.metadata?.total_invoice_value > 0 && (
-                        <div className={`p-4 rounded-lg border flex items-center justify-between ${result.compliance_summary?.sum_check_passed ? 'bg-green-900/20 border-green-500/30' : 'bg-red-900/20 border-red-500/30'}`}>
+                        <div className={`p-4 rounded-lg border flex items-center justify-between ${result.compliance_summary?.sum_check_passed ? 'bg-green-900/20 border-green-500/30' : 'bg-red-900/20 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]'}`}>
                             <div className="flex items-center gap-3">
-                                {result.compliance_summary?.sum_check_passed ? <CheckCircle className="text-green-500" /> : <AlertTriangle className="text-red-500" />}
+                                {result.compliance_summary?.sum_check_passed ? <CheckCircle className="text-green-500" /> : <ShieldAlert className="text-red-500 animate-pulse" />}
                                 <div>
-                                    <h3 className="font-bold text-white">Sum Check Validation</h3>
+                                    <h3 className={`font-bold ${result.compliance_summary?.sum_check_passed ? 'text-white' : 'text-red-400'}`}>
+                                        {result.compliance_summary?.sum_check_passed ? 'Math Integrity Secured' : 'Anomaly Detected: Invoice Fraud/Error Prevention Active'}
+                                    </h3>
                                     <p className="text-xs text-gray-400">
-                                        Declared: ${result.compliance_summary?.declared_total} | Calculated: ${result.compliance_summary?.calculated_total}
+                                        {result.compliance_summary?.sum_check_passed
+                                            ? `Verified: $${result.compliance_summary?.calculated_total?.toLocaleString()}`
+                                            : `Mismatch! Declared: $${result.compliance_summary?.declared_total?.toLocaleString()} | System Result: $${result.compliance_summary?.calculated_total?.toLocaleString()}`}
                                     </p>
                                 </div>
                             </div>
@@ -475,7 +493,7 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                     <th className="px-4 py-3 text-right">Qty</th>
                                     <th className="px-4 py-3 text-right">Price</th>
                                     <th className="px-4 py-3">HS Code</th>
-                                    <th className="px-4 py-3">LDC Impact</th>
+                                    <th className="px-4 py-3">Tariff Status</th>
                                     <th className="px-4 py-3">Status</th>
                                 </tr>
                             </thead>
@@ -498,9 +516,13 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                {item.ldc_impact?.impacted ? (
-                                                    <span className="text-blue-400 text-xs border border-blue-500/30 px-2 py-0.5 rounded bg-blue-500/10" title={item.ldc_impact.note}>
-                                                        2026 Impact
+                                                {item.financial?.is_us_cotton_optimized ? (
+                                                    <span className="text-emerald-400 text-xs border border-emerald-500/30 px-2 py-0.5 rounded bg-emerald-500/10 flex items-center gap-1" title="0% Duty: US Cotton Rules of Origin Met">
+                                                        <Shield size={10} /> US COTTON 0%
+                                                    </span>
+                                                ) : item.ldc_impact?.impacted ? (
+                                                    <span className="text-orange-400 text-xs border border-orange-500/30 px-2 py-0.5 rounded bg-orange-500/10" title="19% Reciprocal Tariff Applied">
+                                                        TRADE RISK: 19%
                                                     </span>
                                                 ) : (
                                                     <span className="text-gray-600 text-xs">-</span>

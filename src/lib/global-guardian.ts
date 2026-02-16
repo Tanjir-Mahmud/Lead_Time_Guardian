@@ -9,6 +9,7 @@
 
 import { gatherLiveTradeIntelligence, LiveTradeIntelligence, TavilyResult } from './tavily-search';
 import { generateRiskOpportunityReport, IndustrySector, RiskOpportunityReport } from './trade-strategist';
+import { calculateFirstMile, suggestBestMode, type FirstMileResult, type ModeRecommendation } from './first-mile';
 import { getOpenRouter } from './openrouter';
 
 // --- Types ---
@@ -65,6 +66,9 @@ export interface GlobalGuardianReport {
     };
 
     guardian_alert: string;
+    winning_move: string;
+    first_mile?: FirstMileResult;
+    mode_recommendation?: ModeRecommendation;
     live_news_summary: string[];
 
     intelligence_metadata: {
@@ -173,12 +177,20 @@ export async function generateGlobalGuardianReport(
     sector: string,
     fobValue: number,
     portOfLoading: string = 'Chittagong',
-    usesDestinationRawMaterials: boolean = false
+    usesDestinationRawMaterials: boolean = false,
+    originCity?: string,
+    destinationCity?: string
 ): Promise<GlobalGuardianReport> {
+
+    // ===== STEP 0: First-Mile Calculation =====
+    const firstMile = originCity ? calculateFirstMile(originCity) : undefined;
+    const modeRec = originCity ? suggestBestMode(originCity, sector, 40, fobValue) : undefined;
+    const effectivePort = firstMile?.nearest_port || portOfLoading;
+    console.log(`[Guardian] Step 0: First-mile ${originCity || 'N/A'} → ${effectivePort} (${firstMile?.total_first_mile_hours || 0}h)`);
 
     // ===== STEP 1: Tavily Live Search =====
     console.log(`[Guardian] Step 1: Tavily live search for ${originCountry} → ${destinationCountry} (${sector})`);
-    const liveIntel = await gatherLiveTradeIntelligence(originCountry, destinationCountry, sector, portOfLoading);
+    const liveIntel = await gatherLiveTradeIntelligence(originCountry, destinationCountry, sector, effectivePort);
     const hasLiveData = liveIntel.api_status === 'live' || liveIntel.api_status === 'partial';
     const tavilyContext = buildTavilyContext(liveIntel);
 
@@ -190,12 +202,14 @@ export async function generateGlobalGuardianReport(
     const fallbackReport = generateRiskOpportunityReport({
         origin_country: originCountry,
         destination_country: destinationCountry,
-        port_of_loading: portOfLoading,
+        origin_city: originCity,
+        destination_city: destinationCity,
+        port_of_loading: effectivePort,
         port_of_discharge: dischargePort,
         sector: inferredSector,
         fob_value_usd: fobValue,
         uses_destination_raw_materials: usesDestinationRawMaterials,
-        shipment_mode: 'Sea',
+        shipment_mode: modeRec?.recommended_mode || 'Sea',
     });
 
     const baselineRate = fallbackReport.tariff_analysis.baseline_tariff_pct;
@@ -236,6 +250,21 @@ ${tavilyContext}
 - Port Congestion: ${fallbackReport.primary_port_risk.congestion_index}%
 - Priority: ${fallbackReport.priority_classification}
 - Alternative Ports: ${fallbackReport.alternative_routes.map(r => r.port_name).join(', ') || 'None'}
+- Winning Move (Strategist): ${fallbackReport.winning_move}
+${firstMile ? `
+# FIRST-MILE LOGISTICS:
+- Origin City: ${firstMile.origin_city} (${firstMile.origin_country})
+- Nearest Port: ${firstMile.nearest_port}
+- Distance: ${firstMile.distance_km}km
+- Transit: ${firstMile.transit_hours}h + Buffer: ${firstMile.buffer_hours}h = ${firstMile.total_first_mile_hours}h total
+- Infrastructure: ${firstMile.infrastructure_note}
+` : ''}
+${modeRec ? `
+# MODE RECOMMENDATION:
+- Best Mode: ${modeRec.recommended_mode}
+- Reason: ${modeRec.reason}
+- Cost Multiplier: ${modeRec.cost_multiplier}x vs Sea
+` : ''}
 
 # YOUR TASK:
 Synthesize the live search results with the fallback data. Produce a JSON report.
@@ -283,12 +312,14 @@ If live data has more accurate tariff rates, USE THEM over the fallback.
     "reason": "<why this is better>"
   },
   "guardian_alert": "<ONE sentence, specific, actionable advice — mention exact country names, port names, or dollar amounts>",
+  "winning_move": "<ONE sentence — the single most impactful action to save money or time. E.g. 'Use US Cotton to eliminate 19% duty' or 'Move from Road to Rail to avoid storm at Route X'>",
   "live_news_summary": ["<top 3-5 headlines with trade impact>"]
 }
 
 RULES:
 - Use ACTUAL tariff rates from live data or fallback. Never default to 19%.
 - guardian_alert must be ONE SENTENCE with specific numbers and actions.
+- winning_move must be ONE SENTENCE — the single most impactful optimization.
 - financial_impact numbers must be precise to 2 decimal places.
 - Return ONLY valid JSON.
 `;
@@ -361,9 +392,13 @@ RULES:
 
             guardian_alert: analysis.guardian_alert || (
                 usesDestinationRawMaterials
-                    ? `Zero-tariff active — saving $${(fobValue * (baselineRate / 100)).toFixed(2)} on ${originCountry} → ${destinationCountry}. Monitor ${portOfLoading} for delays.`
+                    ? `Zero-tariff active — saving $${(fobValue * (baselineRate / 100)).toFixed(2)} on ${originCountry} → ${destinationCountry}. Monitor ${effectivePort} for delays.`
                     : `Source raw materials from ${destinationCountry} to reduce ${baselineRate}% tariff to 0% — potential saving: $${(fobValue * (baselineRate / 100)).toFixed(2)}.`
             ),
+
+            winning_move: analysis.winning_move || fallbackReport.winning_move,
+            first_mile: firstMile,
+            mode_recommendation: modeRec,
 
             live_news_summary: analysis.live_news_summary || [],
 
@@ -434,6 +469,9 @@ RULES:
             guardian_alert: usesDestinationRawMaterials
                 ? `Zero-tariff active — saving $${(fobValue * (baselineRate / 100)).toFixed(2)} on ${originCountry} → ${destinationCountry}.`
                 : `Source raw materials from ${destinationCountry} to reduce ${baselineRate}% tariff — potential saving: $${(fobValue * (baselineRate / 100)).toFixed(2)}.`,
+            winning_move: fallbackReport.winning_move,
+            first_mile: firstMile,
+            mode_recommendation: modeRec,
             live_news_summary: [],
             intelligence_metadata: {
                 data_source: 'system_fallback',

@@ -3,7 +3,7 @@
 import { validateHSCode } from '@/lib/tariffs';
 import { runComplianceSwarm } from '@/lib/agents';
 import { NextRequest, NextResponse } from 'next/server';
-import { calculateAV_Strict, calculateTTI, calculateRevenueRisk, calculateERP, calculateLDCRiskScore, calculateCBAMLiability, calculateLDCRisk_Financial, calculateCarbonIntensity, validateLineItemMath } from '@/lib/financial-brain/calculations';
+import { calculateAV_Strict, calculateTTI, calculateRevenueRisk, calculateERP, calculateReciprocalTariffScore, calculateCBAMLiability, calculateReciprocalTariff, calculateCarbonIntensity, validateLineItemMath } from '@/lib/financial-brain/calculations';
 import { analyzeAirToSeaSavings } from '@/lib/financial-brain/strategies';
 import { createClient } from '@/lib/supabase/server';
 import { getForecast, analyzeWeatherRisk } from '@/lib/weather';
@@ -52,25 +52,22 @@ export async function POST(req: NextRequest) {
         // Fetch Regulatory Rates (Default to Textile/Footwear for this user context)
         let incentiveRate = 0.08;
 
-        // STRICT PROTOCOL: LDC Risk Rate is FIXED at 11.9% (0.119) for 2026 Simulation
-        // We ignore the DB value for the 'Risk' calculation as per "Golden Rules"
-        const ldcRiskRate = 0.119;
+        // STRICT PROTOCOL: Reciprocal Tariff Rate is 19% (0.19) for 2026
+        const reciprocalTariffRate = 0.19;
 
         // We fetch 'Textile' or 'General' as a baseline for the Agent's strategic advice (Incentives only)
         const { data: rates } = await supabase
             .from('regulatory_rates')
             .select('incentive_rate')
-            // .eq('category', 'Textile') // defaulting to likely category for Synthetic Steps
-            .limit(1)
+            // .limit(1)
             .single();
 
         if (rates) {
             incentiveRate = rates.incentive_rate;
-            // ldcRiskRate = rates.ldc_risk_rate; // DISABLED: Enforcing 11.9%
         }
 
         // Run Compliance Swarm with Live Context
-        const swarmResults = await runComplianceSwarm(base64Image, mimeType, { incentiveRate, ldcRiskRate });
+        const swarmResults = await runComplianceSwarm(base64Image, mimeType, { incentiveRate, ldcRiskRate: reciprocalTariffRate });
 
         // Aggregation Logic (Enhanced)
         const verifier = swarmResults.find(r => r.agentName === 'Document Verifier')?.output || {};
@@ -78,6 +75,8 @@ export async function POST(req: NextRequest) {
         const calculator = swarmResults.find(r => r.agentName === 'Strategic Compliance Auditor')?.output || {}; // Updated Name
 
         // --- END PRE-FETCH ---
+        const globalOrigin = verifier.origin_country || verifier.Origin || 'Bangladesh';
+        const globalDestination = verifier.destination || verifier.Destination || 'USA';
 
         // 1. Line Item Validation, Math Integrity & Compliance
         const lineItems = Array.isArray(verifier.line_items) ? verifier.line_items : [];
@@ -128,15 +127,18 @@ export async function POST(req: NextRequest) {
                     const av = calculateAV_Strict(itemValue);
 
                     const isRMG = (hsCode.startsWith('61') || hsCode.startsWith('62'));
-                    const currentRate = tariffInfo.TTI || 0;
-                    const extraRate = ldcRiskRate > 1 ? ldcRiskRate : ldcRiskRate * 100;
-                    const futureRate = currentRate + extraRate;
-                    const riskScore = calculateLDCRiskScore(currentRate, futureRate, isRMG);
+                    // 2026 Reciprocal Tariff Analysis
+                    const desc = item.description || '';
+                    const isUSCotton = desc.toLowerCase().includes('us cotton') || desc.toLowerCase().includes('u.s. cotton');
+                    const extraRate = reciprocalTariffRate > 1 ? reciprocalTariffRate : reciprocalTariffRate * 100;
+                    const appliedRate = isUSCotton ? 0 : extraRate;
 
-                    const riskRateDecimal = ldcRiskRate > 1 ? ldcRiskRate / 100 : ldcRiskRate;
-                    const ldcFinancialRisk = av * riskRateDecimal;
+                    // Calculate Tariff Risk based on the gap
+                    const riskScore = calculateReciprocalTariffScore(0, appliedRate, isUSCotton);
+                    const riskRateDecimal = appliedRate / 100;
+                    const reciprocalFinancialTariff = av * riskRateDecimal;
 
-                    const erpAnalysis = calculateERP(15, currentRate);
+                    const erpAnalysis = calculateERP(15, tariffInfo.TTI || 0);
                     // CBAM & Carbon Logic: Added HS 39, 42, 64 check
                     const isHighCarbonHS = hsCode.startsWith('39') || hsCode.startsWith('42') || hsCode.startsWith('61') || hsCode.startsWith('64');
                     const cbam = calculateCBAMLiability(item.description || '', itemWeight);
@@ -154,9 +156,9 @@ export async function POST(req: NextRequest) {
 
                     financial = {
                         assessable_value: av,
-                        duty_rate: tariffInfo.TTI,
-                        revenue_at_risk: ldcFinancialRisk,
-                        ldc_risk_score: riskScore,
+                        reciprocal_tariff_value: reciprocalFinancialTariff,
+                        reciprocal_tariff_score: riskScore,
+                        is_us_cotton_optimized: isUSCotton,
                         erp_analysis: erpAnalysis,
                         cbam_liability: cbam,
                         carbon_impact: carbon
@@ -196,7 +198,7 @@ export async function POST(req: NextRequest) {
         // 3. GLOBAL VARIABLE LOCK (The Sync Rule)
         // Calculate strictly from the Aggregated Total First
         const strictGlobalAV_Raw = calculateAV_Strict(trueTotalFob);
-        const strictGlobalRisk_Raw = strictGlobalAV_Raw * 0.119; // Enforced 11.9% Rule
+        const strictGlobalRisk_Raw = strictGlobalAV_Raw * 0.19; // Enforced 19% Reciprocal Tariff
 
         // PRECISION LOCK: Round to 2 decimals BEFORE usage to ensure DB === UI
         const strictGlobalAV = Number(strictGlobalAV_Raw.toFixed(2));
@@ -305,7 +307,7 @@ export async function POST(req: NextRequest) {
         const dutyDrawback = Number((trueTotalFob * 0.06).toFixed(2));
 
         // Aggregate Risk
-        const maxRiskScore = Math.max(...validatedItems.map((i: any) => i.financial?.ldc_risk_score || 0));
+        const maxRiskScore = Math.max(...validatedItems.map((i: any) => i.financial?.reciprocal_tariff_score || 0));
         const totalCBAM = Number(validatedItems.reduce((sum: number, i: any) => sum + (i.financial?.cbam_liability?.liabilityEUR || 0), 0).toFixed(2));
 
         const cfoReport = {
@@ -317,23 +319,24 @@ export async function POST(req: NextRequest) {
             },
             tax_compliance: {
                 current_tti_rate: Number((validatedItems[0]?.compliance?.tariff_rate || 0).toFixed(2)),
-                future_tti_rate: Number(((validatedItems[0]?.compliance?.tariff_rate || 0) + (ldcRiskRate > 1 ? ldcRiskRate : ldcRiskRate * 100)).toFixed(2)),
+                future_tti_rate: Number(((validatedItems[0]?.compliance?.tariff_rate || 0) + (validatedItems[0]?.financial?.is_us_cotton_optimized ? 0 : (reciprocalTariffRate > 1 ? reciprocalTariffRate : reciprocalTariffRate * 100))).toFixed(2)),
             },
             ca_recommendations: [
+                rexStatus === 'MISSING' && (globalDestination.toUpperCase().includes('EU') || globalDestination.toUpperCase().includes('SWEDEN')) ? { type: 'CRITICAL Compliance', advice: 'Missing REX Statement (Invoice > €6,000) - EU Requirement.', savings: 0 } : null,
+                totalCBAM > 0 && (globalDestination.toUpperCase().includes('EU') || globalDestination.toUpperCase().includes('SWEDEN')) ? { type: 'CRITICAL Compliance', advice: 'EU CBAM Liability Detected. Carbon Certificate Mandatory.', savings: 0 } : null,
                 cfoAdvice ? { type: 'Lead-Time Risk', advice: cfoAdvice, savings: 0 } : null,
                 activeWeatherRisk.hasRisk ? { type: 'Predictive Risk', advice: predictiveAlert, savings: 0 } : null,
-                mathErrorsFound ? { type: 'Math Integrity', advice: `🚨 CRITICAL: Math Error Detected. Declared $${declaredTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, True Total $${calculatedSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. System Corrected.`, savings: 0 } : null,
-                rexStatus === 'MISSING' ? { type: 'Compliance', advice: 'Missing REX Statement for Invoice > €6,000.', savings: 0 } : null,
+                mathErrorsFound ? { type: 'Math Integrity', advice: `🚨 CRITICAL: Anomaly Detected: Invoice Fraud/Error Prevention Active. Declared $${declaredTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, True Total $${calculatedSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. System Corrected.`, savings: 0 } : null,
+                rexStatus === 'MISSING' && !(globalDestination.toUpperCase().includes('EU') || globalDestination.toUpperCase().includes('SWEDEN')) ? { type: 'Compliance', advice: 'Missing REX Statement for Invoice > €6,000.', savings: 0 } : null,
                 logisticsStrategy.savings > 0 ? { type: 'Logistics', advice: logisticsStrategy.message, savings: Number(logisticsStrategy.savings.toFixed(2)) } : null,
-                incentiveEligible ? { type: 'Incentive', advice: `Claim Incentive (${(incentiveRate > 1 ? incentiveRate : incentiveRate * 100).toFixed(2)}% via Supabase)`, savings: incentiveAmt } : null,
-                dutyDrawback > 0 ? { type: 'Drawback', advice: `Claim Duty Drawback (Fixed 6% Rate)`, savings: dutyDrawback } : null,
+                incentiveEligible ? { type: 'Incentive', advice: `Claim Strategic Combination (8% Sector-Specific Cash Assistance + 6% Estimated Duty Drawback)`, savings: incentiveAmt + dutyDrawback } : null,
                 validatedItems[0]?.financial?.erp_analysis?.recommendation ? { type: 'Strategic', advice: validatedItems[0]?.financial?.erp_analysis?.recommendation, savings: 0 } : null,
-                totalCBAM > 0 ? { type: 'Compliance', advice: 'Prepare CBAM Carbon Certificate for EU Customs', savings: 0 } : null
+                totalCBAM > 0 && !(globalDestination.toUpperCase().includes('EU') || globalDestination.toUpperCase().includes('SWEDEN')) ? { type: 'Compliance', advice: 'Prepare CBAM Carbon Certificate for EU Customs', savings: 0 } : null
             ].filter(Boolean),
             profit_protection: {
                 total_incentives: incentiveAmt,
                 duty_drawback: dutyDrawback,
-                revenue_risk: strictGlobalRisk, // UNIFIED: Syncs with Tax Summary (Section 5 Sync)
+                revenue_at_risk: validatedItems[0]?.financial?.reciprocal_tariff_value || 0,
                 ldc_graduation_risk_score: maxRiskScore,
                 cbam_liability_eur: totalCBAM
             },
@@ -356,7 +359,7 @@ export async function POST(req: NextRequest) {
         const bestTime = isCriticalRoadAlert ? "02:00 AM - 04:00 AM (Night)" : "10:00 PM - 06:00 AM (Off-Peak)";
 
         // Net Margin Calculation for Display
-        const netMargin = (14.00 - 11.90 - (efficiencyPenalty * 100)).toFixed(2);
+        const netMargin = (14.00 - 19.00 - (efficiencyPenalty * 100)).toFixed(2);
 
         const data: any = {
             metadata: {
@@ -384,7 +387,7 @@ export async function POST(req: NextRequest) {
 🛣️ Road Delay: ${roadDelay.toFixed(1)}h (${isCriticalRoadAlert ? '🔴 Critical' : '🟢 Stable'}). ${isCriticalRoadAlert ? 'Heavy congestion may add 12h to lead-time.' : 'Traffic flow normal.'}
 🚢 Port Status: ${congestionIndex !== undefined ? congestionIndex : 'N/A'}% Congestion. ${(congestionIndex > 70) ? 'Air Freight recommended to save delivery window.' : 'Sea Freight operations normal.'}
 ⛈️ Weather Forecast: ${activeWeatherRisk.hasRisk ? `${activeWeatherRisk.description} predicted at ${destRisk.hasRisk ? destCity : originCity} within ${activeWeatherRisk.forecastDate || '72h'}. Start loading now.` : 'Clear skies. No loading delays expected.'}
-💰 Net Margin: +${netMargin}% Safety (After 11.9% LDC Risk & 14% Benefits${isCriticalRoadAlert ? ' & 2% Penalty' : ''}).
+💰 Net Margin: ${netMargin}% (After 19% Reciprocal Tariff & 14% Benefits${isCriticalRoadAlert ? ' & 2% Penalty' : ''}).
 🚀 Action: Dispatch vehicle between ${bestTime} to bypass peak traffic.
 
 ---
@@ -392,31 +395,40 @@ export async function POST(req: NextRequest) {
 ### 🛡️ HEDGING ANALYSIS (2026 PROTECTION)
 
 **Strategic Net Margin Calculation**
-*   **Total Export Benefits**: 14.00% (8% Incentive + 6% Drawback)
-*   **Less: 2026 Graduation Risk**: 11.90% (MFN Rate Impact)
+*   **Total Export Benefits**: 14.00% ('Strategic Combination' of 8% Sector-Specific Cash Assistance and 6% Estimated Duty Drawback)
+*   **Less: 2026 Reciprocal Tariff**: 19.00% (Standard Rate)
 ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #ef4444; font-weight: bold;">-2.00%</span> (Critical Road Alert)` : ''}
-*   **Net Compliance Safety Margin**: <span style="color: ${isCriticalRoadAlert ? '#facc15' : '#4ade80'}; font-weight: bold;">${(2.10 - (efficiencyPenalty * 100)).toFixed(2)}%</span>
+*   **Net Compliance Margin**: <span style="color: ${isCriticalRoadAlert ? '#facc15' : '#ef4444'}; font-weight: bold;">${(-5.00 - (efficiencyPenalty * 100)).toFixed(2)}%</span> (Compliance Gap Risk)
 
-> **"${isCriticalRoadAlert ? 'Efficiency Penalty (-2%) applied due to Critical Road Alert. Net Margin reduced to ' + (2.10 - (efficiencyPenalty * 100)).toFixed(2) + '%.' : 'Total Export Benefits (14%) effectively hedge against the 11.9% Graduation Risk, leaving a net positive margin of +2.10%.'}"**
+> **"Requires Trade Optimization to flip to positive margin. ${isCriticalRoadAlert ? 'Efficiency Penalty (-2%) applied due to Critical Road Alert. Optimize via destination-sourcing for 0% tariff to achieve +14% net margin.' : 'Standard 19% Reciprocal Tariff exceeds 14% benefits by -5%. Apply destination-sourcing or trade agreement optimization to achieve 0% tariff and +14% net margin.'}"**
             `.trim(),
             swarm_thoughts: swarmResults.map(r => ({ agent: r.agentName, thought: r.thoughtSignature }))
         };
 
-        // --- GLOBAL GUARDIAN REPORT (You.com API + Gemini) ---
+        // --- GLOBAL GUARDIAN REPORT (Tavily + Gemini) ---
         try {
-            const guardianOrigin = verifier.origin_country || data.metadata?.origin || 'Bangladesh';
-            const guardianDest = verifier.destination || data.metadata?.destination || 'European Union';
+            const guardianOrigin = globalOrigin;
+            const guardianDest = globalDestination;
             const guardianSector = validatedItems[0]?.description || 'Textile';
-            console.log(`[Guardian] Generating report: ${guardianOrigin} → ${guardianDest} (${guardianSector})`);
+
+            // Extract city name from origin string (e.g., "Sylhet, Bangladesh" → "Sylhet")
+            const originCity = globalOrigin.includes(',') ? globalOrigin.split(',')[0].trim() : undefined;
+            const destCity = globalDestination.includes(',') ? globalDestination.split(',')[0].trim() : undefined;
+
+            console.log(`[Guardian] Generating report: ${guardianOrigin} → ${guardianDest} (${guardianSector}) | City: ${originCity || 'N/A'}`);
 
             const guardianReport = await generateGlobalGuardianReport(
                 guardianOrigin,
                 guardianDest,
                 guardianSector,
-                trueTotalFob
+                trueTotalFob,
+                undefined, // portOfLoading — let first-mile determine
+                false,     // usesDestinationRawMaterials
+                originCity,
+                destCity
             );
             data.global_guardian_report = guardianReport;
-            console.log(`[Guardian] ✅ Report generated. Risk Score: ${guardianReport.route_risk_score}/10 | Status: ${guardianReport.analysis_status}`);
+            console.log(`[Guardian] ✅ Report generated. Risk Score: ${guardianReport.route_risk_score}/10 | Status: ${guardianReport.analysis_status} | Winning Move: ${guardianReport.winning_move?.substring(0, 50)}...`);
         } catch (guardianErr) {
             console.error('[Guardian] ⚠️ Report generation failed (non-blocking):', guardianErr);
             data.global_guardian_report = null;
@@ -426,6 +438,9 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
         try {
             const stratOrigin = verifier.origin_country || data.metadata?.origin || 'Bangladesh';
             const stratDest = verifier.destination || data.metadata?.destination || 'USA';
+            // Extract city names
+            const stratOriginCity = stratOrigin.includes(',') ? stratOrigin.split(',')[0].trim() : undefined;
+            const stratDestCity = stratDest.includes(',') ? stratDest.split(',')[0].trim() : undefined;
             // Infer sector from description or HS code
             const desc = (validatedItems[0]?.description || '').toLowerCase();
             let inferredSector: IndustrySector = 'General';
@@ -438,6 +453,8 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
             const stratReport = generateRiskOpportunityReport({
                 origin_country: stratOrigin,
                 destination_country: stratDest,
+                origin_city: stratOriginCity,
+                destination_city: stratDestCity,
                 port_of_loading: 'Chittagong',
                 port_of_discharge: stratDest.toLowerCase().includes('us') ? 'Los Angeles' : 'Rotterdam',
                 sector: inferredSector,
@@ -447,7 +464,7 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
                 shipment_mode: 'Sea',
             });
             data.risk_opportunity_report = stratReport;
-            console.log(`[Strategist] ✅ Report: ${stratReport.priority_classification} | Lead Time: ${stratReport.predicted_lead_time}`);
+            console.log(`[Strategist] ✅ Report: ${stratReport.priority_classification} | Lead Time: ${stratReport.predicted_lead_time} | Winning Move: ${stratReport.winning_move?.substring(0, 50)}...`);
         } catch (stratErr) {
             console.error('[Strategist] ⚠️ Report failed (non-blocking):', stratErr);
             data.risk_opportunity_report = null;
@@ -496,7 +513,7 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
             shipment_id: shipmentData.id,
             assessable_value: strictGlobalAV, // DATABASE SYNC: Corrected Value
             incentive_amount: cfoReport.profit_protection.total_incentives,
-            ldc_risk_value: strictGlobalRisk, // DATABASE SYNC: Corrected Value
+            ldc_risk_value: validatedItems[0]?.financial?.reciprocal_tariff_value || 0, // DATABASE SYNC: Using legacy column for compatibility
             risk_score: cfoReport.profit_protection.ldc_graduation_risk_score,
             audit_json: data, // Keeping full JSON for redundancy/debugging
             user_id: user.id, // Tag with user_id for RLS ownership

@@ -53,18 +53,59 @@ const PORT_COORDINATES: Record<string, { lat: number; lng: number; label: string
     'port klang': { lat: 3.0006, lng: 101.3887, label: 'Port Klang' },
 };
 
-// City/country coordinates for origin
+// City/country coordinates for origin — 30+ global cities
 const COUNTRY_COORDINATES: Record<string, { lat: number; lng: number; label: string }> = {
+    // Bangladesh
     'bangladesh': { lat: 23.8103, lng: 90.4125, label: 'Dhaka, Bangladesh' },
     'dhaka': { lat: 23.8103, lng: 90.4125, label: 'Dhaka, Bangladesh' },
+    'sylhet': { lat: 24.8949, lng: 91.8687, label: 'Sylhet, Bangladesh' },
+    'narayanganj': { lat: 23.6238, lng: 90.5000, label: 'Narayanganj, Bangladesh' },
+    'rajshahi': { lat: 24.3636, lng: 88.6241, label: 'Rajshahi, Bangladesh' },
+    'khulna': { lat: 22.8456, lng: 89.5403, label: 'Khulna, Bangladesh' },
+    // India
     'india': { lat: 19.0760, lng: 72.8777, label: 'Mumbai, India' },
+    'mumbai': { lat: 19.0760, lng: 72.8777, label: 'Mumbai, India' },
+    'delhi': { lat: 28.7041, lng: 77.1025, label: 'Delhi, India' },
+    'kolkata': { lat: 22.5726, lng: 88.3639, label: 'Kolkata, India' },
+    'chennai': { lat: 13.0827, lng: 80.2707, label: 'Chennai, India' },
+    'tiruppur': { lat: 11.1085, lng: 77.3411, label: 'Tiruppur, India' },
+    // China
     'china': { lat: 31.2304, lng: 121.4737, label: 'Shanghai, China' },
+    'shenzhen': { lat: 22.5431, lng: 114.0579, label: 'Shenzhen, China' },
+    'guangzhou': { lat: 23.1291, lng: 113.2644, label: 'Guangzhou, China' },
+    'shanghai': { lat: 31.2304, lng: 121.4737, label: 'Shanghai, China' },
+    'yiwu': { lat: 29.3065, lng: 120.0750, label: 'Yiwu, China' },
+    'beijing': { lat: 39.9042, lng: 116.4074, label: 'Beijing, China' },
+    // Vietnam
     'vietnam': { lat: 10.8231, lng: 106.6297, label: 'Ho Chi Minh City, Vietnam' },
-    'turkey': { lat: 41.0082, lng: 28.9784, label: 'Istanbul, Turkey' },
+    'hanoi': { lat: 21.0278, lng: 105.8342, label: 'Hanoi, Vietnam' },
+    // USA
     'usa': { lat: 40.7128, lng: -74.0060, label: 'New York, USA' },
+    'ohio': { lat: 39.9612, lng: -82.9988, label: 'Ohio, USA' },
+    'chicago': { lat: 41.8781, lng: -87.6298, label: 'Chicago, USA' },
+    // Europe
     'germany': { lat: 53.5511, lng: 9.9937, label: 'Hamburg, Germany' },
     'uk': { lat: 51.5074, lng: -0.1278, label: 'London, UK' },
     'european union': { lat: 50.8503, lng: 4.3517, label: 'Brussels, EU' },
+    'lyon': { lat: 45.7640, lng: 4.8357, label: 'Lyon, France' },
+    'paris': { lat: 48.8566, lng: 2.3522, label: 'Paris, France' },
+    'berlin': { lat: 52.5200, lng: 13.4050, label: 'Berlin, Germany' },
+    'london': { lat: 51.5074, lng: -0.1278, label: 'London, UK' },
+    'istanbul': { lat: 41.0082, lng: 28.9784, label: 'Istanbul, Turkey' },
+    'milan': { lat: 45.4642, lng: 9.1900, label: 'Milan, Italy' },
+    // Middle East & Africa
+    'turkey': { lat: 41.0082, lng: 28.9784, label: 'Istanbul, Turkey' },
+    'dubai': { lat: 25.2048, lng: 55.2708, label: 'Dubai, UAE' },
+    'nairobi': { lat: -1.2921, lng: 36.8219, label: 'Nairobi, Kenya' },
+    'johannesburg': { lat: -26.2041, lng: 28.0473, label: 'Johannesburg, South Africa' },
+    // Oceania & S. America
+    'sydney': { lat: -33.8688, lng: 151.2093, label: 'Sydney, Australia' },
+    'melbourne': { lat: -37.8136, lng: 144.9631, label: 'Melbourne, Australia' },
+    'sao paulo': { lat: -23.5505, lng: -46.6333, label: 'São Paulo, Brazil' },
+    // Southeast Asia
+    'bangkok': { lat: 13.7563, lng: 100.5018, label: 'Bangkok, Thailand' },
+    'jakarta': { lat: -6.2088, lng: 106.8456, label: 'Jakarta, Indonesia' },
+    'kuala lumpur': { lat: 3.1390, lng: 101.6869, label: 'Kuala Lumpur, Malaysia' },
 };
 
 function resolveCoords(name: string, lookup: Record<string, { lat: number; lng: number; label: string }>): { lat: number; lng: number; label: string } | null {
@@ -126,50 +167,71 @@ function FitBounds({ origin, destination }: { origin: [number, number]; destinat
 
 export interface GlobalRouteMapProps {
     originCountry?: string;
+    originCity?: string;
     destinationCountry?: string;
+    destinationCity?: string;
     portOfLoading?: string;
     portOfDischarge?: string;
     congestionIndex?: number;
     riskLevel?: string;
     leadTime?: string;
+    winningMove?: string;
+    firstMileHours?: number;
 }
 
 export default function GlobalRouteMap({
     originCountry = 'Bangladesh',
+    originCity,
     destinationCountry = 'USA',
+    destinationCity,
     portOfLoading = 'Chittagong',
     portOfDischarge = 'Los Angeles',
     congestionIndex = 0,
     riskLevel = 'Low',
     leadTime,
+    winningMove,
+    firstMileHours,
 }: GlobalRouteMapProps) {
 
-    // Resolve coordinates
+    // Resolve coordinates — priority: city > port > country
+    const originCityCoord = originCity ? resolveCoords(originCity, COUNTRY_COORDINATES) : null;
     const originPort = resolveCoords(portOfLoading, PORT_COORDINATES);
     const destPort = resolveCoords(portOfDischarge, PORT_COORDINATES);
-    const originCity = resolveCoords(originCountry, COUNTRY_COORDINATES);
-    const destCity = resolveCoords(destinationCountry, COUNTRY_COORDINATES);
+    const destCityCoord = destinationCity ? resolveCoords(destinationCity, COUNTRY_COORDINATES) : null;
+    const originFallback = resolveCoords(originCountry, COUNTRY_COORDINATES);
+    const destFallback = resolveCoords(destinationCountry, COUNTRY_COORDINATES);
 
-    // Use port coords first, city as fallback
-    const originCoord: [number, number] = originPort
+    // Multi-leg coordinates
+    const startCoord: [number, number] = originCityCoord
+        ? [originCityCoord.lat, originCityCoord.lng]
+        : originPort ? [originPort.lat, originPort.lng]
+            : originFallback ? [originFallback.lat, originFallback.lng] : [23.8103, 90.4125];
+
+    const loadingCoord: [number, number] = originPort
         ? [originPort.lat, originPort.lng]
-        : originCity
-            ? [originCity.lat, originCity.lng]
-            : [23.8103, 90.4125]; // Default Dhaka
+        : startCoord;
 
-    const destCoord: [number, number] = destPort
+    const dischargeCoord: [number, number] = destPort
         ? [destPort.lat, destPort.lng]
-        : destCity
-            ? [destCity.lat, destCity.lng]
-            : [33.7361, -118.2642]; // Default LA
+        : destFallback ? [destFallback.lat, destFallback.lng] : [33.7361, -118.2642];
 
-    const originLabel = originPort?.label || originCity?.label || originCountry;
-    const destLabel = destPort?.label || destCity?.label || destinationCountry;
+    const endCoord: [number, number] = destCityCoord
+        ? [destCityCoord.lat, destCityCoord.lng]
+        : dischargeCoord;
 
-    // Generate curved shipping route
-    const routePath = useMemo(
-        () => createCurvedPath(originCoord, destCoord),
-        [originCoord[0], originCoord[1], destCoord[0], destCoord[1]]
+    // Is multi-leg? (city is different from port)
+    const hasFirstMile = originCityCoord && originPort &&
+        (Math.abs(originCityCoord.lat - originPort.lat) > 0.1 || Math.abs(originCityCoord.lng - originPort.lng) > 0.1);
+    const hasLastMile = destCityCoord && destPort &&
+        (Math.abs(destCityCoord.lat - destPort.lat) > 0.1 || Math.abs(destCityCoord.lng - destPort.lng) > 0.1);
+
+    const originLabel = originCityCoord?.label || originPort?.label || originFallback?.label || originCountry;
+    const destLabel = destCityCoord?.label || destPort?.label || destFallback?.label || destinationCountry;
+
+    // Generate route paths
+    const mainRoutePath = useMemo(
+        () => createCurvedPath(loadingCoord, dischargeCoord),
+        [loadingCoord[0], loadingCoord[1], dischargeCoord[0], dischargeCoord[1]]
     );
 
     // Route color based on risk
@@ -179,12 +241,23 @@ export default function GlobalRouteMap({
             ? '#f59e0b'
             : '#22c55e';
 
-    // Center between the two points
-    const centerLat = (originCoord[0] + destCoord[0]) / 2;
-    const centerLng = (originCoord[1] + destCoord[1]) / 2;
+    // Center between the two extreme points
+    const centerLat = (startCoord[0] + endCoord[0]) / 2;
+    const centerLng = (startCoord[1] + endCoord[1]) / 2;
 
     return (
         <div className="relative">
+            {/* Winning Move Banner */}
+            {winningMove && (
+                <div className="mb-3 bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-amber-500/20 border border-amber-500/30 rounded-xl px-4 py-2.5 flex items-center gap-3">
+                    <span className="text-lg">🏆</span>
+                    <div>
+                        <div className="text-[10px] uppercase tracking-wider text-amber-400 font-semibold">Winning Move</div>
+                        <div className="text-xs text-amber-100 font-medium">{winningMove}</div>
+                    </div>
+                </div>
+            )}
+
             <div className="h-[400px] w-full rounded-xl overflow-hidden border border-gold/20 shadow-2xl relative z-0">
                 <MapContainer
                     center={[centerLat, centerLng]}
@@ -198,26 +271,81 @@ export default function GlobalRouteMap({
                         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                     />
 
-                    <FitBounds origin={originCoord} destination={destCoord} />
+                    <FitBounds origin={startCoord} destination={endCoord} />
+
+                    {/* First-Mile Leg: City → Loading Port (dashed blue) */}
+                    {hasFirstMile && (
+                        <Polyline
+                            positions={[startCoord, loadingCoord]}
+                            pathOptions={{
+                                color: '#3b82f6',
+                                weight: 3,
+                                opacity: 0.9,
+                                dashArray: '6, 8',
+                            }}
+                        />
+                    )}
+
+                    {/* Main Sea Route: Loading Port → Discharge Port (solid/curved) */}
+                    <Polyline
+                        positions={mainRoutePath}
+                        pathOptions={{
+                            color: routeColor,
+                            weight: 3,
+                            opacity: 0.8,
+                            dashArray: '10, 6',
+                        }}
+                    />
+
+                    {/* Last-Mile Leg: Discharge Port → Destination City (dashed green) */}
+                    {hasLastMile && (
+                        <Polyline
+                            positions={[dischargeCoord, endCoord]}
+                            pathOptions={{
+                                color: '#22c55e',
+                                weight: 3,
+                                opacity: 0.9,
+                                dashArray: '6, 8',
+                            }}
+                        />
+                    )}
+
+                    {/* Origin City Marker (if different from port) */}
+                    {hasFirstMile && (
+                        <Marker position={startCoord} icon={new DivIcon({
+                            className: 'custom-marker',
+                            html: '<div style="background:#3b82f6;width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>',
+                            iconSize: [12, 12],
+                            iconAnchor: [6, 6],
+                        })}>
+                            <Popup>
+                                <div style={{ color: '#000', fontSize: '12px' }}>
+                                    <strong>🏭 Origin: {originCityCoord?.label}</strong>
+                                    <br />
+                                    First-Mile: {firstMileHours ? `${firstMileHours}h` : 'Calculating...'} → {portOfLoading}
+                                </div>
+                            </Popup>
+                        </Marker>
+                    )}
 
                     {/* Origin Port Marker */}
-                    <Marker position={originCoord} icon={originIcon}>
+                    <Marker position={loadingCoord} icon={originIcon}>
                         <Popup>
                             <div style={{ color: '#000', fontSize: '12px' }}>
-                                <strong>🏭 Origin: {originLabel}</strong>
+                                <strong>⚓ {originPort?.label || portOfLoading}</strong>
                                 <br />
-                                Port of Loading: {portOfLoading}
+                                Port of Loading
                             </div>
                         </Popup>
                     </Marker>
 
                     {/* Destination Port Marker */}
-                    <Marker position={destCoord} icon={destIcon}>
+                    <Marker position={dischargeCoord} icon={destIcon}>
                         <Popup>
                             <div style={{ color: '#000', fontSize: '12px' }}>
-                                <strong>🚢 Destination: {destLabel}</strong>
+                                <strong>🚢 {destPort?.label || portOfDischarge}</strong>
                                 <br />
-                                Port of Discharge: {portOfDischarge}
+                                Port of Discharge
                                 {congestionIndex > 0 && (
                                     <>
                                         <br />
@@ -228,16 +356,21 @@ export default function GlobalRouteMap({
                         </Popup>
                     </Marker>
 
-                    {/* Shipping Route Line */}
-                    <Polyline
-                        positions={routePath}
-                        pathOptions={{
-                            color: routeColor,
-                            weight: 3,
-                            opacity: 0.8,
-                            dashArray: '10, 6',
-                        }}
-                    />
+                    {/* Destination City Marker (if different from port) */}
+                    {hasLastMile && (
+                        <Marker position={endCoord} icon={new DivIcon({
+                            className: 'custom-marker',
+                            html: '<div style="background:#22c55e;width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>',
+                            iconSize: [12, 12],
+                            iconAnchor: [6, 6],
+                        })}>
+                            <Popup>
+                                <div style={{ color: '#000', fontSize: '12px' }}>
+                                    <strong>📍 Destination: {destCityCoord?.label}</strong>
+                                </div>
+                            </Popup>
+                        </Marker>
+                    )}
                 </MapContainer>
 
                 {/* Overlay badges */}
@@ -252,6 +385,12 @@ export default function GlobalRouteMap({
                         <div className="bg-navy/90 backdrop-blur border border-gold/20 px-3 py-1.5 rounded-lg text-[11px]">
                             <span className="text-gray-400">ETA: </span>
                             <span className="text-gold font-bold">{leadTime}</span>
+                        </div>
+                    )}
+                    {hasFirstMile && firstMileHours && (
+                        <div className="bg-blue-500/10 backdrop-blur border border-blue-500/30 px-3 py-1.5 rounded-lg text-[11px]">
+                            <span className="text-blue-300">🚛 First-Mile: </span>
+                            <span className="text-blue-100 font-bold">{firstMileHours}h</span>
                         </div>
                     )}
                 </div>

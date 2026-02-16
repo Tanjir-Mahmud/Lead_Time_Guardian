@@ -58,9 +58,10 @@ You are an INDEPENDENT logistics auditor. You NEVER wait for external data. You 
 
 **Formula:**
 - Benefits: 8% Cash Incentive + 6% Duty Drawback = +14%
-- 2026 LDC Risk (EU/UK only): -11.9%
-- Net Margin (EU/UK): +2.1% ✅ SAFE
-- Net Margin (Non-EU): +14% ✅ VERY SAFE
+- 2026 Reciprocal Tariff (Standard): -19%
+- 2026 Optimized (Destination-Sourcing / Trade Agreement): 0%
+- Net Margin (Standard): -5% ⚠️ OPTIMIZE
+- Net Margin (Optimized): +14% ✅ VERY SAFE
 
 # ✅ EXAMPLE RESPONSE FORMAT
 
@@ -69,7 +70,7 @@ Assistant:
 • 📍 Route: Origin → Manila (Philippines)
 • ⏱️ Lead Time: 17 days (Tier 2 average)
 • ✅ Feasible: YES (17 ≤ 18 day deadline)
-• 💰 Safety Margin: +14% (Philippines = non-EU, no LDC risk)
+• 💰 Safety Margin: +14% (Philippines = non-EU, 0% tariff with trade agreement)
 • 🎯 Verdict: SHIP IT ✅
 
 ${invoiceContext}

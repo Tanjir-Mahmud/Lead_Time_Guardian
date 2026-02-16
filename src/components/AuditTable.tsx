@@ -24,7 +24,7 @@ export const AuditTable = ({ logs, onRowClick, onDownload }: AuditTableProps) =>
                     <tr>
                         <th className="px-6 py-3 uppercase tracking-wider text-xs">Invoice & Route</th>
                         <th className="px-6 py-3 uppercase tracking-wider text-xs">FOB Value</th>
-                        <th className="px-6 py-3 uppercase tracking-wider text-xs">2026 Risk (11.9%)</th>
+                        <th className="px-6 py-3 uppercase tracking-wider text-xs">Reciprocal Tariff (19%)</th>
                         <th className="px-6 py-3 uppercase tracking-wider text-xs">Net Margin</th>
                         <th className="px-6 py-3 uppercase tracking-wider text-xs">Status</th>
                         <th className="px-6 py-3 uppercase tracking-wider text-xs text-right">Action</th>
@@ -48,7 +48,7 @@ export const AuditTable = ({ logs, onRowClick, onDownload }: AuditTableProps) =>
                                     ${log.fob_value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                                 <td className="px-6 py-4 text-red-400 font-medium">
-                                    -${(log.fob_value * 0.119).toFixed(2)}
+                                    -${(log.fob_value * 0.19).toFixed(2)}
                                 </td>
                                 <td className={`px-6 py-4 font-bold ${log.net_margin >= 2.10 ? 'text-green-400' : 'text-orange-400'}`}>
                                     {log.net_margin.toFixed(2)}%

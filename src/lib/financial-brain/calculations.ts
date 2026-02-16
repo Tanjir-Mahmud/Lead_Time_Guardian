@@ -25,18 +25,18 @@ interface FinancialResult {
 
 
 /**
- * Calculates Assessable Value (AV) - Strict Protocol
- * Formula: (FOB * 1.01) * 1.01
- * Note: The prompt explicitly mandates this estimation formula.
+ * Calculates Assessable Value (AV) - Strict Protocol (Customs Act 23)
+ * Formula: FOB + 1% Freight + 1% Insurance + 1% Landing Charge
+ * Simplified Calculation: (FOB * 1.01 * 1.01 * 1.01)
  */
 export function calculateAV_Strict(fobValue: number): number {
-    // User Rule: Always calculate as (FOB * 1.01) * 1.01. Do not estimate.
-    return (fobValue * 1.01) * 1.01;
+    // User Rule: Always calculate as (FOB * 1.01 * 1.01 * 1.01). Do not estimate.
+    return fobValue * 1.01 * 1.01 * 1.01;
 }
 
 // Keeping legacy simplified calculator for estimation compatibility if needed
 export function calculateAV(cifValue: number): number {
-    return (cifValue * 1.01) * 1.01;
+    return cifValue * 1.01 * 1.01 * 1.01;
 }
 
 /**
@@ -102,11 +102,12 @@ export function calculateRevenueRisk(cif: number, currentDuties: DutyStructure, 
 }
 
 /**
- * LDC Graduation Risk Simulation
- * Protocol: AV * 11.9% MFN jump rate
+ * 2026 Reciprocal Tariff Calculation
+ * Standard: FOB * 19% (Reciprocal Tariff)
+ * Optimized: FOB * 0% (US Cotton sourcing or trade agreement applied)
  */
-export function calculateLDCRisk_Financial(av: number): number {
-    return av * 0.119;
+export function calculateReciprocalTariff(fobValue: number, isOptimized: boolean = false): number {
+    return isOptimized ? 0 : fobValue * 0.19;
 }
 
 export function calculateERP(inputTariff: number, outputTariff: number): { erpScore: string, recommendation: string } {
@@ -123,16 +124,14 @@ export function calculateERP(inputTariff: number, outputTariff: number): { erpSc
     }
 }
 
-export function calculateLDCRiskScore(currentRate: number, futureRate: number, isRMG: boolean): number {
+export function calculateReciprocalTariffScore(currentRate: number, futureRate: number, isUSCotton: boolean): number {
     const delta = futureRate - currentRate;
     let score = 0;
-    if (delta <= 0) score = 1;
+    if (delta <= 0 || isUSCotton) score = 1;
     else if (delta < 5) score = 3;
     else if (delta < 10) score = 5;
     else if (delta < 15) score = 7;
     else score = 9;
-
-    if (isRMG && score < 10) score += 1;
 
     return Math.min(10, Math.max(1, score));
 }

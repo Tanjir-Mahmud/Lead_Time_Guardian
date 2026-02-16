@@ -115,9 +115,9 @@ export function AuditHistory({ onSelectAudit }: AuditHistoryProps) {
         if (typeof profit.net_margin_percent === 'number') {
             margin = profit.net_margin_percent;
         } else {
-            // Fallback Calculation: 14% (Benefit) - 11.9% (Risk if applicable)
-            // This is a rough heuristic if the AI didn't return an explicit field
-            margin = 2.1;
+            // Fallback Calculation: 14% (Benefit) - 19% (Reciprocal Tariff) = -5% without optimization
+            // With 0% preferential: 14% net benefit
+            margin = -5.0;
         }
 
         return {
