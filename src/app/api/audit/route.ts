@@ -10,6 +10,7 @@ import { getForecast, analyzeWeatherRisk } from '@/lib/weather';
 import { getRoadStatus, getPortStatus, calculateLogisticsHealth } from '@/lib/logistics';
 import { KNOWLEDGE_BASE } from '@/lib/knowledge_base';
 import { generateGlobalGuardianReport } from '@/lib/global-guardian';
+import { generateRiskOpportunityReport, IndustrySector } from '@/lib/trade-strategist';
 
 
 const SYSTEM_PROMPT = `
@@ -419,6 +420,37 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
         } catch (guardianErr) {
             console.error('[Guardian] ⚠️ Report generation failed (non-blocking):', guardianErr);
             data.global_guardian_report = null;
+        }
+
+        // --- RISK & OPPORTUNITY REPORT (Trade Strategist Engine) ---
+        try {
+            const stratOrigin = verifier.origin_country || data.metadata?.origin || 'Bangladesh';
+            const stratDest = verifier.destination || data.metadata?.destination || 'USA';
+            // Infer sector from description or HS code
+            const desc = (validatedItems[0]?.description || '').toLowerCase();
+            let inferredSector: IndustrySector = 'General';
+            if (desc.match(/shirt|garment|textile|apparel|fabric|cotton|knit|woven/)) inferredSector = 'Garments';
+            else if (desc.match(/electronic|chip|circuit|battery|phone|laptop/)) inferredSector = 'Electronics';
+            else if (desc.match(/food|fruit|vegetable|fish|meat|dairy|perishable/)) inferredSector = 'Perishables';
+            else if (desc.match(/chemical|acid|polymer|resin|pharma/)) inferredSector = 'Chemicals';
+            else if (desc.match(/auto|car|engine|vehicle|motor/)) inferredSector = 'Automotive';
+
+            const stratReport = generateRiskOpportunityReport({
+                origin_country: stratOrigin,
+                destination_country: stratDest,
+                port_of_loading: 'Chittagong',
+                port_of_discharge: stratDest.toLowerCase().includes('us') ? 'Los Angeles' : 'Rotterdam',
+                sector: inferredSector,
+                fob_value_usd: trueTotalFob,
+                uses_destination_raw_materials: false,
+                hs_code: validatedItems[0]?.hs_code,
+                shipment_mode: 'Sea',
+            });
+            data.risk_opportunity_report = stratReport;
+            console.log(`[Strategist] ✅ Report: ${stratReport.priority_classification} | Lead Time: ${stratReport.predicted_lead_time}`);
+        } catch (stratErr) {
+            console.error('[Strategist] ⚠️ Report failed (non-blocking):', stratErr);
+            data.risk_opportunity_report = null;
         }
 
         // --- AUDIT LOG STORAGE (Integrity Protocol) ---
