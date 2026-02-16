@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getForecast, analyzeWeatherRisk } from '@/lib/weather';
 import { getRoadStatus, getPortStatus, calculateLogisticsHealth } from '@/lib/logistics';
 import { KNOWLEDGE_BASE } from '@/lib/knowledge_base';
+import { generateGlobalGuardianReport } from '@/lib/global-guardian';
 
 
 const SYSTEM_PROMPT = `
@@ -399,6 +400,26 @@ ${isCriticalRoadAlert ? `*   **Less: Efficiency Penalty**: <span style="color: #
             `.trim(),
             swarm_thoughts: swarmResults.map(r => ({ agent: r.agentName, thought: r.thoughtSignature }))
         };
+
+        // --- GLOBAL GUARDIAN REPORT (You.com API + Gemini) ---
+        try {
+            const guardianOrigin = verifier.origin_country || data.metadata?.origin || 'Bangladesh';
+            const guardianDest = verifier.destination || data.metadata?.destination || 'European Union';
+            const guardianSector = validatedItems[0]?.description || 'Textile';
+            console.log(`[Guardian] Generating report: ${guardianOrigin} → ${guardianDest} (${guardianSector})`);
+
+            const guardianReport = await generateGlobalGuardianReport(
+                guardianOrigin,
+                guardianDest,
+                guardianSector,
+                trueTotalFob
+            );
+            data.global_guardian_report = guardianReport;
+            console.log(`[Guardian] ✅ Report generated. Risk Score: ${guardianReport.route_risk_score}/10 | Source: ${guardianReport.data_source}`);
+        } catch (guardianErr) {
+            console.error('[Guardian] ⚠️ Report generation failed (non-blocking):', guardianErr);
+            data.global_guardian_report = null;
+        }
 
         // --- AUDIT LOG STORAGE (Integrity Protocol) ---
         // 1. Insert into 'shipments' (Fail on Duplicate or Upsert)
