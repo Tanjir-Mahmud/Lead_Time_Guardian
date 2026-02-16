@@ -3,10 +3,17 @@
 
 import { useState, useEffect } from 'react';
 import { Upload, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 
 import { startTransition } from 'react';
 import { runAutonomousAudit } from '@/app/actions';
 import { useAuditContext, AuditContextData } from '@/context/AuditContext';
+import { FinancialImpactCard } from './FinancialImpactCard';
+
+const GlobalRouteMap = dynamic(() => import('./GlobalRouteMap'), {
+    ssr: false,
+    loading: () => <div className="h-[400px] w-full bg-navy/50 animate-pulse rounded-xl border border-gold/20 flex items-center justify-center text-gold">Loading Global Route Map...</div>
+});
 
 interface DocumentAuditorProps {
     initialData?: any;
@@ -214,6 +221,28 @@ export function DocumentAuditor({ initialData }: DocumentAuditorProps) {
                         </div>
                     )}
 
+                    {/* Financial Impact Comparison — 19% Tax vs 0% Tax */}
+                    {result.risk_opportunity_report && (
+                        <FinancialImpactCard
+                            report={result.risk_opportunity_report}
+                            guardianReport={result.global_guardian_report}
+                        />
+                    )}
+
+                    {/* Global Route Map — OpenStreetMap Visualization */}
+                    {result.metadata?.origin && (
+                        <div className="rounded-xl overflow-hidden">
+                            <GlobalRouteMap
+                                originCountry={result.metadata?.origin || 'Bangladesh'}
+                                destinationCountry={result.metadata?.destination || 'USA'}
+                                portOfLoading={result.risk_opportunity_report?.primary_port_risk?.port_name || 'Chittagong'}
+                                portOfDischarge={result.risk_opportunity_report?.alternative_routes?.[0]?.port_name || 'Los Angeles'}
+                                congestionIndex={result.risk_opportunity_report?.primary_port_risk?.congestion_index || 0}
+                                riskLevel={result.risk_opportunity_report?.primary_port_risk?.risk_level || 'Low'}
+                                leadTime={result.risk_opportunity_report?.predicted_lead_time}
+                            />
+                        </div>
+                    )}
 
                     {/* CFO Strategic Audit (Format: User Request) */}
                     {result.cfo_strategic_report && (
