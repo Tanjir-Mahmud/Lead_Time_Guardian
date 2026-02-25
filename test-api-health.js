@@ -107,7 +107,7 @@ async function testBarikoiAPI() {
 
         // Test with a basic geocoding request
         const response = await fetch(
-            `https://barikoi.xyz/v2/api/search/reverse/geocode/server/${apiKey}/place?longitude=90.4125&latitude=23.8103&district=true&post_code=true&country=true&sub_district=true&union=true&pauroshoba=true&location_type=true&division=true&address=true&area=true`
+            `https://barikoi.xyz/v2/api/search/reverse/geocode?api_key=${apiKey}&longitude=90.4125&latitude=23.8103&district=true&post_code=true&country=true&sub_district=true&union=true&pauroshova=true&location_type=true&division=true&address=true&area=true`
         );
         const data = await response.json();
 

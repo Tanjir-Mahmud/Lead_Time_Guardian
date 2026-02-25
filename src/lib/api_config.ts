@@ -5,7 +5,7 @@ export const API_CONFIG = {
     },
     BARIKOI: {
         KEY: 'bkoi_1a1b9bbe3b853a709abc0922df555138a30a4c5c5b508f78957aa81faed43c0f',
-        BASE_URL: 'https://barikoi.xyz/v1/api', // Example base URL, adjust if needed
+        BASE_URL: 'https://barikoi.xyz/v2/api',
     },
     TERMINAL49: {
         KEY: 'API bZyXEjwNXJGpnTSLvQexihrH',

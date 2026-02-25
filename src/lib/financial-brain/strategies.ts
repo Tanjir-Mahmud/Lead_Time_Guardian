@@ -54,7 +54,8 @@ export async function fetchLogisticsStatus(): Promise<ApiStatus> {
             // Dhaka-Chittagong Highway Coordinates (approximate midpoint/key points)
             // Using a traffic search or routing API simulation
             // Real endpoint would be routing or specific traffic endpoint
-            const res = await fetch(`https://barikoi.xyz/v1/api/search/traffic?key=${BARIKOI_KEY}&q=Chittagong Highway`);
+            // Using routing as traffic proxy: Chittagong to Dhaka 
+            const res = await fetch(`https://barikoi.xyz/v2/api/route/90.4125,23.8103;91.7832,22.3569?api_key=${BARIKOI_KEY}&geometries=polyline`);
             if (res.ok) {
                 const data = await res.json();
                 // Logic depends on actual API response structure, assumed 'status' or similar
